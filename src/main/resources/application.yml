@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: QuoraApp
+  mongodb:
+    uri: mongodb://localhost:27017/quora
+    auto-index-creation: true
