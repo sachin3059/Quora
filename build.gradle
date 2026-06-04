@@ -1,34 +1,46 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '4.0.6'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.4.1'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
-group = 'com.example'
+group = 'com.quora'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
-	testCompileOnly 'org.projectlombok:lombok'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	testAnnotationProcessor 'org.projectlombok:lombok'
-    implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive:4.0.5")
+    // 1. Spring WebFlux (High-Performance, Non-blocking Netty Web Engine)
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // 2. Reactive MongoDB (Asynchronous persistence layer driver)
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb-reactive'
+
+    // 3. Jakarta Bean Validation (Enforces payload syntax constraints natively)
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 4. Developer Productivity (Lombok compilation processor)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // 5. Reactive Test Bed Frameworks
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }

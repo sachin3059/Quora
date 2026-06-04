@@ -1,10 +1,10 @@
-package QuoraProject;
+package quora;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DemoApplicationTests {
+class QuoraApplicationTests {
 
 	@Test
 	void contextLoads() {
