@@ -1,43 +1,42 @@
-package com.quora.questions.model;
+package com.quora.comments.model;
+
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.TextIndexed;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
-import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "questions")
-public class Question {
+@Document(collection = "comments")
+public class Comment {
     @Id
     private String id;
 
-    @TextIndexed(weight = 3)
-    private String title;
+    @Indexed
+    private String parentId; // ID of the direct parent(Question, Answer , or Comment)
 
-    @TextIndexed(weight = 1)
+    private String parentType; // QUESTION, ANSWER, COMMENT
+
+    @Indexed
+    private String rootId;     // The ultimate top-level question or answer id.
+
     private String content;
 
     private String authorId;
-
-    private List<String> tags;
 
     @Builder.Default
     private long upvotes = 0L;
 
     @Builder.Default
     private long downvotes = 0L;
-
-    @Builder.Default
-    private int answerCount = 0;
 
     private Instant createdAt;
 }
