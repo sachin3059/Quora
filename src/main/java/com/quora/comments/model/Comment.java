@@ -21,9 +21,9 @@ public class Comment {
     private String id;
 
     @Indexed
-    private String parentId; // ID of the direct parent(Question, Answer , or Comment)
+    private String parentId; // ID of the direct parent(Answer , or Comment)
 
-    private String parentType; // QUESTION, ANSWER, COMMENT
+    private String parentType; //  ANSWER, COMMENT
 
     @Indexed
     private String rootId;     // The ultimate top-level question or answer id.
