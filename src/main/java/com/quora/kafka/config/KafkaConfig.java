@@ -15,6 +15,7 @@ public class KafkaConfig {
     public static final String ANSWER_POSTED_TOPIC = "quora.answer.posted";
     public static final String COMMENT_POSTED_TOPIC = "quora.comment.posted";
     public static final String QUESTION_POSTED_TOPIC = "quora.question.posted";
+    public static final String USER_FOLLOWED_TOPIC = "quora.user.followed";
 
     // Topic Beans
     @Bean
@@ -44,6 +45,14 @@ public class KafkaConfig {
     @Bean
     public NewTopic questionPostedTopic(){
         return TopicBuilder.name(QUESTION_POSTED_TOPIC)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic userFollowedTopic() {
+        return TopicBuilder.name(USER_FOLLOWED_TOPIC)
                 .partitions(3)
                 .replicas(1)
                 .build();

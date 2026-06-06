@@ -2,10 +2,7 @@ package com.quora.kafka.producer;
 
 
 import com.quora.kafka.config.KafkaConfig;
-import com.quora.kafka.events.AnswerPostedEvent;
-import com.quora.kafka.events.CommentPostedEvent;
-import com.quora.kafka.events.QuestionPostedEvent;
-import com.quora.kafka.events.VoteCastEvent;
+import com.quora.kafka.events.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -36,5 +33,11 @@ public class EventProducer {
     public void publishQuestionPosted(QuestionPostedEvent event){
         kafkaTemplate.send(KafkaConfig.QUESTION_POSTED_TOPIC, event.getQuestionId(), event);
         log.info("Published questionPostedEvent for question: {}", event.getQuestionId());
+    }
+
+    public void publishUserFollowed(UserFollowedEvent event) {
+        kafkaTemplate.send(KafkaConfig.USER_FOLLOWED_TOPIC, event.getFollowingId(), event);
+        log.info("Published UserFollowedEvent: {} followed {}",
+                event.getFollowerId(), event.getFollowingId());
     }
 }
