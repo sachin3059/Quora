@@ -1,5 +1,7 @@
 package com.quora.questions.service;
 
+import com.quora.kafka.events.QuestionPostedEvent;
+import com.quora.kafka.producer.EventProducer;
 import com.quora.questions.dto.QuestionRequestDTO;
 import com.quora.questions.dto.QuestionResponseDTO;
 import com.quora.questions.mapper.QuestionMapper;
@@ -19,9 +21,18 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final QuestionMapper questionMapper;
 
+    private final EventProducer eventProducer;
+
     public Mono<QuestionResponseDTO> createQuestion(QuestionRequestDTO questionRequestDTO, String authorId) {
         return Mono.just(questionMapper.toEntity(questionRequestDTO, authorId))
                 .flatMap(questionRepository::save)
+                .doOnSuccess(question -> eventProducer.publishQuestionPosted(
+                        QuestionPostedEvent.builder()
+                                .questionId(question.getId())
+                                .authorId(authorId)
+                                .tags(question.getTags())
+                                .build()
+                ))
                 .map(questionMapper::toResponseDTO);
     }
 

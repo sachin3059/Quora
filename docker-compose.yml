@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+
+  # ─── MongoDB ────────────────────────────────────────
+  mongodb:
+    image: mongo:latest
+    container_name: quora-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: quora
+    networks:
+      - quora-network
+
+  # ─── Zookeeper (Required by Kafka) ──────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: quora-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - quora-network
+
+  # ─── Kafka ──────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: quora-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    networks:
+      - quora-network
+
+  # ─── Redis (Adding now for future caching) ──────────
+  redis:
+    image: redis:7.2
+    container_name: quora-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - quora-network
+
+volumes:
+  mongodb_data:
+    external: true
+    name: 083bbbe09ce837caf1d2368113b5a60695255cfc0fd3d8f03c4894d80ce85d8d
+  redis_data:
+
+networks:
+  quora-network:
+    driver: bridge

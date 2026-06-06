@@ -5,6 +5,8 @@ import com.quora.comments.dto.CommentResponseDTO;
 import com.quora.comments.mapper.CommentMapper;
 import com.quora.comments.model.Comment;
 import com.quora.comments.repository.CommentRepository;
+import com.quora.kafka.events.CommentPostedEvent;
+import com.quora.kafka.producer.EventProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -17,11 +19,21 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final CommentMapper commentMapper;
 
+    private final EventProducer eventProducer;
+
     public Mono<CommentResponseDTO> createCommentOnAnswer(CommentRequestDTO dto, String authorId, String answerId) {
         // For independent comments, parentId and rootAnswerId are BOTH the answerId
         Comment comment = commentMapper.toEntity(dto, authorId, answerId, "ANSWER", answerId);
 
         return commentRepository.save(comment)
+                .doOnSuccess(saved -> eventProducer.publishCommentPosted(
+                        CommentPostedEvent.builder()
+                                .commentId(saved.getId())
+                                .authorId(authorId)
+                                .parentId(answerId)
+                                .parentType("ANSWER")
+                                .build()
+                ))
                 .map(commentMapper::toResponseDTO);
     }
 
@@ -39,7 +51,15 @@ public class CommentService {
                             "COMMENT",
                             parentComment.getRootId()
                     );
-                    return commentRepository.save(reply);
+                    return commentRepository.save(reply)
+                            .doOnSuccess(saved -> eventProducer.publishCommentPosted(
+                                    CommentPostedEvent.builder()
+                                            .commentId(saved.getId())
+                                            .authorId(authorId)
+                                            .parentId(targetCommentId)
+                                            .parentType("COMMENT")
+                                            .build()
+                            ));
                 })
                 .map(commentMapper::toResponseDTO);
     }

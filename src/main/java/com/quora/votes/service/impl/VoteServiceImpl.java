@@ -1,6 +1,8 @@
 package com.quora.votes.service.impl;
 
 import com.quora.comments.model.Comment;
+import com.quora.kafka.events.VoteCastEvent;
+import com.quora.kafka.producer.EventProducer;
 import com.quora.votes.dto.VoteRequestDTO;
 import com.quora.votes.dto.VoteResponseDTO;
 import com.quora.votes.enums.TargetType;
@@ -26,6 +28,8 @@ public class VoteServiceImpl implements VoteService {
     private final VoteRepository voteRepository;
     private final VoteMapper voteMapper;
     private final ReactiveMongoTemplate mongoTemplate;
+
+    private final EventProducer eventProducer;
 
     @Override
     public Mono<VoteResponseDTO> castVote(VoteRequestDTO dto, String userId,
@@ -61,6 +65,15 @@ public class VoteServiceImpl implements VoteService {
 
         return atomicIncrement(existingVote.getTargetId(), targetType, field, -1)
                 .then(voteRepository.delete(existingVote))
+                .doOnTerminate(() -> eventProducer.publishVoteCast(
+                        VoteCastEvent.builder()
+                                .voterId(existingVote.getUserId())
+                                .targetId(existingVote.getTargetId())
+                                .targetType(targetType)
+                                .voteType(existingVote.getVoteType())
+                                .action("REMOVED")
+                                .build()
+                ))
                 .then(Mono.empty()); // returns empty — vote removed
     }
 
@@ -72,12 +85,23 @@ public class VoteServiceImpl implements VoteService {
         // Decrement old vote type, increment new vote type
         String decrementField = existingVote.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
         String incrementField = dto.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
+        VoteType previousVoteType = existingVote.getVoteType();
 
         existingVote.setVoteType(dto.getVoteType()); // update vote type
 
         return atomicIncrement(existingVote.getTargetId(), targetType, decrementField, -1)
                 .then(atomicIncrement(existingVote.getTargetId(), targetType, incrementField, 1))
                 .then(voteRepository.save(existingVote))
+                .doOnSuccess(vote -> eventProducer.publishVoteCast(
+                        VoteCastEvent.builder()
+                                .voterId(existingVote.getUserId())
+                                .targetId(existingVote.getTargetId())
+                                .targetType(targetType)
+                                .voteType(dto.getVoteType())
+                                .previousVoteType(previousVoteType)
+                                .action("SWITCHED")
+                        .build()
+                ))
                 .map(voteMapper::toResponseDTO);
     }
 
@@ -93,6 +117,14 @@ public class VoteServiceImpl implements VoteService {
 
         return atomicIncrement(targetId, targetType, field, 1)
                 .then(voteRepository.save(voteMapper.toEntity(dto, userId, targetId, targetType)))
+                .doOnSuccess(vote -> eventProducer.publishVoteCast(
+                        VoteCastEvent.builder()
+                                .voterId(userId)
+                                .targetId(targetId)
+                                .voteType(dto.getVoteType())
+                                .action("ADDED")
+                        .build()
+                ))
                 .map(voteMapper::toResponseDTO);
     }
 
