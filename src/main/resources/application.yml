@@ -5,3 +5,8 @@ spring:
     mongodb:
       uri: mongodb://localhost:27017/quora
       auto-index-creation: true
+
+app:
+  jwt:
+    secret: 7d4f9c2a8e5b1f6d3a9c7e2b8f4d1a6c9e3f7b2a5d8e1c4f9a6b3d7e2c8f5a1
+    expiration-ms: 86400000  #24 hr
