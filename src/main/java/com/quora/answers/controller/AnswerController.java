@@ -7,6 +7,7 @@ import com.quora.answers.service.AnswerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -20,7 +21,8 @@ public class AnswerController {
 
     @PostMapping("/questions/{questionId}/answers")
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<AnswerResponseDTO> createAnswer(@PathVariable String questionId, @Valid @RequestBody AnswerRequestDTO answerRequestDTO, @RequestHeader("X-Author-Id") String authorId){
+    public Mono<AnswerResponseDTO> createAnswer(@PathVariable String questionId, @Valid @RequestBody AnswerRequestDTO answerRequestDTO, Authentication authentication) {
+        String authorId = (String)authentication.getPrincipal();
         return answerService.createAnswer(answerRequestDTO, authorId, questionId);
     }
 

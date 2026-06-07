@@ -31,7 +31,7 @@ public class NotificationConsumer {
     // ─── Answer Posted ────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.ANSWER_POSTED_TOPIC,
-            groupId = "notification-service")
+            groupId = "notification-service", containerFactory = "answerPostedListenerFactory")
     public void handleAnswerPosted(AnswerPostedEvent event) {
         log.info("NotificationConsumer received AnswerPostedEvent: {}", event);
 
@@ -61,7 +61,7 @@ public class NotificationConsumer {
     // ─── Comment Posted ───────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.COMMENT_POSTED_TOPIC,
-            groupId = "notification-service")
+            groupId = "notification-service", containerFactory = "commentPostedListenerFactory")
     public void handleCommentPosted(CommentPostedEvent event) {
         log.info("NotificationConsumer received CommentPostedEvent: {}", event);
 
@@ -98,7 +98,7 @@ public class NotificationConsumer {
     // ─── Vote Cast ────────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.VOTE_CAST_TOPIC,
-            groupId = "notification-service")
+            groupId = "notification-service", containerFactory = "voteCastListenerFactory")
     public void handleVoteCast(VoteCastEvent event) {
         log.info("NotificationConsumer received VoteCastEvent: {}", event);
 
@@ -137,7 +137,7 @@ public class NotificationConsumer {
     // ─── User Followed ────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.USER_FOLLOWED_TOPIC,
-            groupId = "notification-service")
+            groupId = "notification-service", containerFactory = "userFollowedListenerFactory")
     public void handleUserFollowed(UserFollowedEvent event) {
         log.info("NotificationConsumer received UserFollowedEvent: {}", event);
 

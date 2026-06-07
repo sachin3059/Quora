@@ -20,6 +20,8 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     consumer:
       group-id: quora-app
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -27,6 +29,7 @@ spring:
       auto-offset-reset: earliest
       properties:
         spring.json.trusted.packages: "*"
+        spring.json.add.type.headers: false
 
 
 # ----- JWT -------

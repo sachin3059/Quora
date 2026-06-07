@@ -6,6 +6,7 @@ import com.quora.comments.service.CommentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -22,7 +23,9 @@ public class CommentController {
     public Mono<CommentResponseDTO> addCommentToAnswer(
             @PathVariable String answerId,
             @Valid @RequestBody CommentRequestDTO requestDTO,
-            @RequestHeader("X-User-Id") String authorId) {
+            Authentication authentication) {
+
+        String authorId = (String)authentication.getPrincipal();
 
         return commentService.createCommentOnAnswer(requestDTO, authorId, answerId);
     }

@@ -121,6 +121,7 @@ public class VoteServiceImpl implements VoteService {
                         VoteCastEvent.builder()
                                 .voterId(userId)
                                 .targetId(targetId)
+                                .targetType(targetType)
                                 .voteType(dto.getVoteType())
                                 .action("ADDED")
                         .build()

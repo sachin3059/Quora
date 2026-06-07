@@ -7,6 +7,7 @@ import com.quora.questions.service.QuestionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -20,9 +21,10 @@ public class QuestionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<QuestionResponseDTO> createQuestion(@Valid @RequestBody QuestionRequestDTO questionRequestDTO) {
+    public Mono<QuestionResponseDTO> createQuestion(@Valid @RequestBody QuestionRequestDTO questionRequestDTO, Authentication authentication) {
         // We will pass a hardcoded "user_123" for now until we integrate Security/JWT
-        return questionService.createQuestion(questionRequestDTO, "user_123");
+        String userId = (String)authentication.getPrincipal();
+        return questionService.createQuestion(questionRequestDTO, userId);
     }
 
     @GetMapping
