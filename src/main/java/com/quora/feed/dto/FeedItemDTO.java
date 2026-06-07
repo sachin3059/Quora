@@ -1,5 +1,4 @@
-package com.quora.questions.dto;
-
+package com.quora.feed.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,14 +12,17 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class QuestionResponseDTO {
-    private String id;
+public class FeedItemDTO {
+
+    private String questionId;
     private String title;
     private String content;
-    private String authorId;
     private List<String> tags;
+    private String authorId;
     private long upvotes;
-    private int answerCount;
-    private int commentCount;
+    private long downvotes;
+    private long answerCount;
+    private long commentCount;
+    private double feedScore;
     private Instant createdAt;
 }

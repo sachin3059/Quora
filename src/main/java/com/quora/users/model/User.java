@@ -11,6 +11,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -48,6 +50,9 @@ public class User {
 
     @Builder.Default
     private long followingCount = 0L;
+
+    @Builder.Default
+    private List<String> interests = new ArrayList<>();
 
     private Instant createdAt;
     private Instant updatedAt;

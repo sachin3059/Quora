@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -28,4 +30,6 @@ public class RegisterRequestDTO {
 
     @NotBlank(message = "Full name cannot be blank")
     private String fullName;
+
+    private List<String> interests;
 }

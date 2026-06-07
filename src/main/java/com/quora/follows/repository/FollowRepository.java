@@ -20,4 +20,9 @@ public interface FollowRepository extends ReactiveMongoRepository<Follow, String
 
     // Get just the followingIds — used for feed
     Flux<Follow> findByFollowerId(String followerId);
+
+    // Already in FollowRepository
+    Flux<Follow> findByFollowingId(String followingId);
+
+
 }

@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Repository
 public interface QuestionRepository extends ReactiveMongoRepository<Question,String> {
 
@@ -22,6 +24,18 @@ public interface QuestionRepository extends ReactiveMongoRepository<Question,Str
 
     // 4. fetch all question in that page.
     Flux<Question> findAllBy(Pageable pageable);
+
+    // Trending
+    Flux<Question> findAllByOrderByUpvotesDesc(Pageable pageable);
+
+    // Latest
+    Flux<Question> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    // Tag based
+    Flux<Question> findByTagsInOrderByCreatedAtDesc(List<String> tags, Pageable pageable);
+
+    // Following
+    Flux<Question> findByAuthorIdInOrderByCreatedAtDesc(List<String> authorIds, Pageable pageable);
 
 
 }
