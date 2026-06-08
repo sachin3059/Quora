@@ -162,21 +162,4 @@ public class VoteServiceImpl implements VoteService {
     public Mono<Long> getDownvoteCount(String targetId) {
         return voteRepository.countByTargetIdAndVoteType(targetId, VoteType.DOWNVOTE);
     }
-
-
-    private Mono<VoteResponseDTO> handleNewVote(
-            VoteRequestDTO dto, String userId,
-            String targetId, TargetType targetType) {
-
-        String field = dto.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
-
-        return atomicIncrement(targetId, targetType, field, 1)
-                .then(voteRepository.save(
-                        voteMapper.toEntity(dto, userId, targetId, targetType)))
-                .onErrorMap(
-                        ex -> ex.getMessage() != null && ex.getMessage().contains("duplicate key"),
-                        ex -> new DuplicateResourceException("You have already voted on this content")
-                )
-                .map(voteMapper::toResponseDTO);
-    }
 }
