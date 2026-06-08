@@ -1,5 +1,6 @@
 package com.quora.users.service.impl;
 
+import com.quora.exception.ResourceNotFoundException;
 import com.quora.users.dto.UpdateProfileRequestDTO;
 import com.quora.users.dto.UserResponseDTO;
 import com.quora.users.mapper.UserMapper;
@@ -22,7 +23,7 @@ public class UserQueryServiceImpl implements UserQueryService {
     @Override
     public Mono<UserResponseDTO> getUserById(String id) {
         return userRepository.findById(id)
-                .switchIfEmpty(Mono.error(new RuntimeException("User not found with id: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("User" ,id)))
                 .map(userMapper::toResponseDTO);
     }
 

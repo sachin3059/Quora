@@ -1,5 +1,6 @@
 package com.quora.users.service.impl;
 
+import com.quora.exception.DuplicateResourceException;
 import com.quora.users.dto.RegisterRequestDTO;
 import com.quora.users.dto.UserResponseDTO;
 import com.quora.users.mapper.UserMapper;
@@ -28,7 +29,7 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
     private Mono<Void> checkEmailNotTaken(String email) {
         return userRepository.existsByEmail(email)
                 .flatMap(exists -> exists
-                        ? Mono.error(new RuntimeException("Email already in use: " + email))
+                        ? Mono.error(new DuplicateResourceException("Email already in use: " + email))
                         : Mono.empty());
     }
 

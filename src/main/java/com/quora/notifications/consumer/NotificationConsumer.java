@@ -1,17 +1,24 @@
 package com.quora.notifications.consumer;
 
+import com.quora.answers.model.Answer;
 import com.quora.answers.repository.AnswerRepository;
+import com.quora.comments.model.Comment;
 import com.quora.comments.repository.CommentRepository;
 import com.quora.kafka.config.KafkaConfig;
 import com.quora.kafka.events.*;
 import com.quora.notifications.enums.NotificationType;
 import com.quora.notifications.mapper.NotificationMapper;
 import com.quora.notifications.repository.NotificationRepository;
+import com.quora.questions.model.Question;
 import com.quora.questions.repository.QuestionRepository;
 import com.quora.users.repository.UserRepository;
 import com.quora.votes.enums.TargetType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -27,6 +34,7 @@ public class NotificationConsumer {
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final CommentRepository commentRepository;
+    private final ReactiveMongoTemplate mongoTemplate;
 
     // ─── Answer Posted ────────────────────────────────────────────────────
 
@@ -34,6 +42,18 @@ public class NotificationConsumer {
             groupId = "notification-service", containerFactory = "answerPostedListenerFactory")
     public void handleAnswerPosted(AnswerPostedEvent event) {
         log.info("NotificationConsumer received AnswerPostedEvent: {}", event);
+
+        if (event.getAuthorId() == null || event.getQuestionAuthorId() == null) {
+            log.error("Invalid AnswerPostedEvent — skipping");
+            return;
+        }
+
+        // Increment answerCount on question atomically
+        incrementAnswerCount(event.getQuestionId())
+                .subscribe(
+                        v -> log.info("answerCount incremented for question: {}", event.getQuestionId()),
+                        e -> log.error("Failed to increment answerCount: {}", e.getMessage())
+                );
 
         // Don't notify if author answers their own question
         if (event.getAuthorId().equals(event.getQuestionAuthorId())) return;
@@ -64,6 +84,19 @@ public class NotificationConsumer {
             groupId = "notification-service", containerFactory = "commentPostedListenerFactory")
     public void handleCommentPosted(CommentPostedEvent event) {
         log.info("NotificationConsumer received CommentPostedEvent: {}", event);
+
+        if (event.getAuthorId() == null || event.getParentId() == null) {
+            log.error("Invalid CommentPostedEvent — skipping");
+            return;
+        }
+
+        // Increment commentCount on parent atomically
+        incrementCommentCount(event.getParentId(), event.getParentType())
+                .subscribe(
+                        v -> log.info("commentCount incremented for parent: {}", event.getParentId()),
+                        e -> log.error("Failed to increment commentCount: {}", e.getMessage())
+                );
+
 
         // Resolve parent author from parentId + parentType
         resolveParentAuthor(event.getParentId(), event.getParentType())
@@ -190,5 +223,23 @@ public class NotificationConsumer {
             case COMMENT -> commentRepository.findById(targetId)
                     .map(c -> c.getAuthorId());
         };
+    }
+
+    private Mono<Void> incrementAnswerCount(String questionId) {
+        Query query = Query.query(Criteria.where("_id").is(questionId));
+        Update update = new Update().inc("answerCount", 1);
+        return mongoTemplate.updateFirst(query, update, Question.class).then();
+    }
+
+    private Mono<Void> incrementCommentCount(String parentId, String parentType) {
+        Query query = Query.query(Criteria.where("_id").is(parentId));
+        Update update = new Update().inc("commentCount", 1);
+
+        if (parentType.equals("ANSWER")) {
+            return mongoTemplate.updateFirst(query, update, Answer.class).then();
+        } else {
+            // Comment on comment — increment rootId question's count
+            return mongoTemplate.updateFirst(query, update, Comment.class).then();
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.quora.notifications.service.impl;
 
+import com.quora.exception.ResourceNotFoundException;
 import com.quora.notifications.dto.NotificationResponseDTO;
 import com.quora.notifications.mapper.NotificationMapper;
 import com.quora.notifications.repository.NotificationRepository;
@@ -38,7 +39,7 @@ public class NotificationServiceImpl implements NotificationService {
             String notificationId, String userId) {
         return notificationRepository.findById(notificationId)
                 .switchIfEmpty(Mono.error(
-                        new RuntimeException("Notification not found: " + notificationId)))
+                        new ResourceNotFoundException("Notification" , notificationId)))
                 .flatMap(notification -> {
                     // Ensure user can only mark their own notifications
                     if (!notification.getRecipientId().equals(userId)) {

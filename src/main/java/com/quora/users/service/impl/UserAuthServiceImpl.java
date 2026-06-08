@@ -1,5 +1,7 @@
 package com.quora.users.service.impl;
 
+import com.quora.exception.ResourceNotFoundException;
+import com.quora.exception.UnauthorizedException;
 import com.quora.users.dto.LoginRequestDTO;
 import com.quora.users.repository.UserRepository;
 import com.quora.users.service.UserAuthService;
@@ -27,7 +29,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     private Mono<com.quora.users.model.User> findActiveUserByEmail(String email) {
         return userRepository.findByEmail(email)
-                .switchIfEmpty(Mono.error(new RuntimeException("No account found with email: " + email)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("User" , email)))
                 .flatMap(user -> user.isActive()
                         ? Mono.just(user)
                         : Mono.error(new RuntimeException("Account is deactivated")));
@@ -36,6 +38,6 @@ public class UserAuthServiceImpl implements UserAuthService {
     private Mono<Void> verifyPassword(String rawPassword, String encodedPassword) {
         return passwordEncoder.matches(rawPassword, encodedPassword)
                 ? Mono.empty()
-                : Mono.error(new RuntimeException("Invalid password"));
+                : Mono.error(new UnauthorizedException("Invalid password"));
     }
 }

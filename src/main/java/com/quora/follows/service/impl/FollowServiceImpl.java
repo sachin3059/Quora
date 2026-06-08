@@ -1,5 +1,7 @@
 package com.quora.follows.service.impl;
 
+import com.quora.exception.DuplicateResourceException;
+import com.quora.exception.ValidationException;
 import com.quora.follows.dto.FollowResponseDTO;
 import com.quora.follows.mapper.FollowMapper;
 import com.quora.follows.repository.FollowRepository;
@@ -30,13 +32,13 @@ public class FollowServiceImpl implements FollowService {
 
         // Prevent following yourself
         if (followerId.equals(followingId)) {
-            return Mono.error(new RuntimeException("You cannot follow yourself"));
+            return Mono.error(new ValidationException("You cannot follow yourself"));
         }
 
         // Check if already following
         return followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
                 .flatMap(existing -> Mono.<FollowResponseDTO>error(
-                        new RuntimeException("You are already following this user")))
+                        new DuplicateResourceException("You are already following this user")))
                 .switchIfEmpty(
                         followRepository.save(followMapper.toEntity(followerId, followingId))
                                 .flatMap(saved ->
