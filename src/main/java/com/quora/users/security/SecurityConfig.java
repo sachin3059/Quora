@@ -26,6 +26,15 @@ public class SecurityConfig {
                 .authorizeExchange(exchanges -> exchanges
                         // Public routes — no token needed
                         .pathMatchers("/api/auth/**").permitAll()
+
+                        // Swagger/OpenAPI
+                        .pathMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/webjars/**"
+                        ).permitAll()
+
                         // Admin only
                         .pathMatchers("/api/admin/**").hasRole("ADMIN")
                         // Everything else requires a valid token
