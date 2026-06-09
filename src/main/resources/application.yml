@@ -1,4 +1,7 @@
 spring:
+  # Tells Spring Boot to extract the real client IP and protocol from Nginx's X-Forwarded-* headers
+  forward-hdr-strategy: framework
+
   application:
     name: QuoraApp
 
@@ -48,10 +51,7 @@ springdoc:
   swagger-ui:
     # Explicitly sets the browser dashboard access path
     path: /swagger-ui.html
-    # Disables saving execution history in public browser sessions
     supported-submit-methods: ["get", "post", "put", "delete", "patch"]
-    # Sorts alpha-numerically by controller tags instead of definition order
     tags-sorter: alpha
     operations-sorter: method
-  # Enforces scanning only our functional business layers
   packages-to-scan: com.quora

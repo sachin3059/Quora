@@ -53,6 +53,23 @@ services:
     networks:
       - quora-network
 
+
+  # ─── Nginx Load Balancer (ADDED) ────────────────────
+  nginx-lb:
+    image: nginx:alpine
+    container_name: quora-nginx-load-balancer
+    ports:
+      - "80:80"  # Exposes standard web port 80 to your Windows machine
+    volumes:
+      # Mounts your local nginx.conf file into the container as read-only
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      # Crucial: Allows the Nginx container to step out of Docker and hit your local Windows IDE ports (8081/8082)
+      - "host.docker.internal:host-gateway"
+    networks:
+      - quora-network
+    restart: always
+
 volumes:
   mongodb_data:
     external: true
