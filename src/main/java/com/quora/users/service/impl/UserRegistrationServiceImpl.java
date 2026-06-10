@@ -23,7 +23,7 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
     public Mono<UserResponseDTO> register(RegisterRequestDTO dto) {
         return checkEmailNotTaken(dto.getEmail())
                 .then(checkUsernameNotTaken(dto.getUsername()))
-                .then(saveUser(dto));
+                .then(Mono.defer(() -> saveUser(dto)));
     }
 
     private Mono<Void> checkEmailNotTaken(String email) {
