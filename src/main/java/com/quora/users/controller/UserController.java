@@ -1,6 +1,8 @@
 package com.quora.users.controller;
 
+import com.quora.users.dto.AuthResponseDTO;
 import com.quora.users.dto.LoginRequestDTO;
+import com.quora.users.dto.RefreshTokenRequestDTO;
 import com.quora.users.dto.RegisterRequestDTO;
 import com.quora.users.dto.UpdateProfileRequestDTO;
 import com.quora.users.dto.UserResponseDTO;
@@ -33,8 +35,14 @@ public class UserController {
     }
 
     @PostMapping("/auth/login")
-    public Mono<String> login(@Valid @RequestBody LoginRequestDTO dto) {
+    public Mono<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO dto) {
         return userAuthService.login(dto);
+    }
+
+    // Exchange a valid refresh token for a new access token
+    @PostMapping("/auth/refresh")
+    public Mono<AuthResponseDTO> refresh(@Valid @RequestBody RefreshTokenRequestDTO dto) {
+        return userAuthService.refreshAccessToken(dto.getRefreshToken());
     }
 
     // ─── User Routes (authenticated) ─────────────────────────────────────
@@ -59,6 +67,14 @@ public class UserController {
             @Valid @RequestBody UpdateProfileRequestDTO dto) {
         String userId = (String) authentication.getPrincipal();
         return userQueryService.updateProfile(userId, dto);
+    }
+
+    // Revoke refresh tokens — invalidates all sessions for the user
+    @PostMapping("/auth/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> logout(Authentication authentication) {
+        String userId = (String) authentication.getPrincipal();
+        return userAuthService.logout(userId);
     }
 
     // ─── Admin Routes ─────────────────────────────────────────────────────
