@@ -43,6 +43,8 @@ public class JwtAuthenticationFilter implements WebFilter {
         String userId = jwtService.extractUserId(token);
         String role = jwtService.extractRole(token);
 
+        exchange.getAttributes().put("userId", userId);
+
         // Build Spring Security authentication object with role
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(

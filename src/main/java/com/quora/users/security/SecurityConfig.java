@@ -16,6 +16,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
@@ -40,7 +41,10 @@ public class SecurityConfig {
                         // Everything else requires a valid token
                         .anyExchange().authenticated()
                 )
+                // JWT runs first — extracts and stores userId in request attributes
                 .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                // Rate limiter runs after JWT — userId is already available in attributes
+                .addFilterAfter(rateLimitFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }
 
