@@ -40,19 +40,21 @@ public class FollowServiceImpl implements FollowService {
                 .flatMap(existing -> Mono.<FollowResponseDTO>error(
                         new DuplicateResourceException("You are already following this user")))
                 .switchIfEmpty(
-                        followRepository.save(followMapper.toEntity(followerId, followingId))
-                                .flatMap(saved ->
-                                        // Atomically update both counters
-                                        incrementFollowersCount(followingId)
-                                                .then(incrementFollowingCount(followerId))
-                                                .doOnSuccess(v -> eventProducer.publishUserFollowed(
-                                                        UserFollowedEvent.builder()
-                                                                .followerId(followerId)
-                                                                .followingId(followingId)
-                                                                .build()
-                                                ))
-                                                .thenReturn(followMapper.toResponseDTO(saved))
-                                )
+                        Mono.defer(() ->
+                                followRepository.save(
+                                                followMapper.toEntity(followerId, followingId))
+                                        .flatMap(saved ->
+                                                incrementFollowersCount(followingId)
+                                                        .then(incrementFollowingCount(followerId))
+                                                        .doOnSuccess(v ->
+                                                                eventProducer.publishUserFollowed(
+                                                                        UserFollowedEvent.builder()
+                                                                                .followerId(followerId)
+                                                                                .followingId(followingId)
+                                                                                .build()))
+                                                        .thenReturn(followMapper.toResponseDTO(saved))
+                                        )
+                        )
                 );
     }
 
