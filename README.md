@@ -1,4 +1,4 @@
-# Quora-like Q&A Platform — Backend
+# Q&A Platform — Backend
 
 > A production-grade, reactive backend for a Q&A platform built with Java, Spring Boot 3, and WebFlux. Designed to demonstrate real-world backend engineering patterns: event-driven architecture, reactive non-blocking I/O, distributed caching, and scalable feed generation — targeting backend roles at top-tier companies.
 
@@ -364,33 +364,3 @@ Demonstrates awareness of the full deployment stack. Nginx sits in front of mult
 
 ---
 
-> **Note:** This is a portfolio project demonstrating backend engineering depth. The architecture is deliberately designed so each phase is independently deployable — the rule-based feed scorer can be swapped for an ML model without changing candidate generation or delivery layers.
-
-## Personalized Feed Generation - References
-
-The following engineering articles are useful for understanding how large-scale platforms generate and rank personalized feeds:
-
-### LinkedIn Engineering
-
-1. Engineering the Next Generation of LinkedIn's Feed  
-   https://www.linkedin.com/blog/engineering/feed/engineering-the-next-generation-of-linkedins-feed
-
-2. Understanding Feed Dwell Time  
-   https://www.linkedin.com/blog/engineering/feed/understanding-feed-dwell-time
-
-3. Community-Focused Feed Optimization  
-   https://www.linkedin.com/blog/engineering/feed/community-focused-feed-optimization
-
-4. Making Your Feed More Relevant (Part I)  
-   https://www.linkedin.com/blog/engineering/archive/making-your-feed-more-relevant-part-i
-
-## Key Concepts Covered
-
-- Candidate Generation
-- Feed Ranking
-- Personalization
-- User Engagement Signals
-- Dwell Time
-- Recommendation Systems
-- Feed Relevance Optimization
-- Large-Scale Feed Architecture

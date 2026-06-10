@@ -1,6 +1,7 @@
 package com.quora.users.service.impl;
 
 import com.quora.exception.ResourceNotFoundException;
+import com.quora.users.cache.UserCacheService;
 import com.quora.users.dto.UpdateProfileRequestDTO;
 import com.quora.users.dto.UserResponseDTO;
 import com.quora.users.mapper.UserMapper;
@@ -19,12 +20,17 @@ public class UserQueryServiceImpl implements UserQueryService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final UserCacheService userCacheService;
 
     @Override
     public Mono<UserResponseDTO> getUserById(String id) {
-        return userRepository.findById(id)
-                .switchIfEmpty(Mono.error(new ResourceNotFoundException("User" ,id)))
-                .map(userMapper::toResponseDTO);
+        return userCacheService.getCachedUser(id)
+                .switchIfEmpty(
+                        userRepository.findById(id)
+                                .switchIfEmpty(Mono.error(new ResourceNotFoundException("User" ,id)))
+                                .map(userMapper::toResponseDTO)
+                                .flatMap(user -> userCacheService.cacheUser(user).thenReturn(user))
+                );
     }
 
     @Override

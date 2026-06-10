@@ -1,5 +1,6 @@
 package com.quora.feed.service.impl;
 
+import com.quora.feed.cache.FeedCacheService;
 import com.quora.feed.dto.FeedItemDTO;
 import com.quora.feed.dto.FeedResponseDTO;
 import com.quora.feed.service.FeedService;
@@ -11,7 +12,6 @@ import com.quora.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -32,15 +32,15 @@ public class FeedServiceImpl implements FeedService {
     private final UserRepository userRepository;
     private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
     private final FeedScoreCalculator scoreCalculator;
+    private final FeedCacheService feedCacheService;
 
     private static final String FEED_KEY = "feed:";
 
-    // ─── Personalized Feed — Redis first, fallback to pull ───────────────
+    // ─── Personalized Feed — Redis sorted set first, fallback to pull ─────
+    // No caching here — already served from Redis sorted set inbox
 
     @Override
-    public Mono<FeedResponseDTO> getPersonalizedFeed(
-            String userId, String cursor, int size) {
-
+    public Mono<FeedResponseDTO> getPersonalizedFeed(String userId, String cursor, int size) {
         String feedKey = FEED_KEY + userId;
 
         return reactiveRedisTemplate.opsForZSet().size(feedKey)
@@ -49,25 +49,103 @@ public class FeedServiceImpl implements FeedService {
                         log.info("Serving feed from Redis for user: {}", userId);
                         return getFeedFromRedis(feedKey, cursor, size);
                     } else {
-                        // Cold start — user has no feed inbox yet
                         log.info("Redis feed empty — falling back to pull for user: {}", userId);
                         return getFallbackFeed(userId, size);
                     }
                 });
     }
 
+    // ─── Latest Feed — cache per page/size ────────────────────────────────
+
+    @Override
+    public Mono<FeedResponseDTO> getLatestFeed(int page, int size) {
+        return feedCacheService.getCachedLatest(page, size)
+                .switchIfEmpty(
+                        questionRepository
+                                .findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
+                                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
+                                .collectList()
+                                .map(items -> buildResponse(items, page, size))
+                                .flatMap(response ->
+                                        feedCacheService.cacheLatest(response, page, size)
+                                                .thenReturn(response))
+                );
+    }
+
+    // ─── Trending Feed — cache per page/size ──────────────────────────────
+
+    @Override
+    public Mono<FeedResponseDTO> getTrendingFeed(int page, int size) {
+        return feedCacheService.getCachedTrending(page, size)
+                .switchIfEmpty(
+                        questionRepository
+                                .findAllByOrderByUpvotesDesc(PageRequest.of(page, size))
+                                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
+                                .collectList()
+                                .map(items -> buildResponse(items, page, size))
+                                .flatMap(response ->
+                                        feedCacheService.cacheTrending(response, page, size)
+                                                .thenReturn(response))
+                );
+    }
+
+    // ─── Tag Feed — cache per userId/page/size ────────────────────────────
+
+    @Override
+    public Mono<FeedResponseDTO> getTagFeed(String userId, int page, int size) {
+        return feedCacheService.getCachedTagFeed(userId, page, size)
+                .switchIfEmpty(
+                        userRepository.findById(userId)
+                                .flatMapMany(user -> {
+                                    if (user.getInterests() == null || user.getInterests().isEmpty()) {
+                                        return questionRepository.findAllByOrderByCreatedAtDesc(
+                                                PageRequest.of(page, size));
+                                    }
+                                    return questionRepository.findByTagsInOrderByCreatedAtDesc(
+                                            user.getInterests(), PageRequest.of(page, size));
+                                })
+                                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
+                                .collectList()
+                                .map(items -> buildResponse(items, page, size))
+                                .flatMap(response ->
+                                        feedCacheService.cacheTagFeed(response, userId, page, size)
+                                                .thenReturn(response))
+                );
+    }
+
+    // ─── Following Feed — cache per userId/page/size ──────────────────────
+
+    @Override
+    public Mono<FeedResponseDTO> getFollowingFeed(String userId, int page, int size) {
+        return feedCacheService.getCachedFollowingFeed(userId, page, size)
+                .switchIfEmpty(
+                        followRepository.findByFollowerId(userId)
+                                .map(follow -> follow.getFollowingId())
+                                .collectList()
+                                .flatMapMany(followingIds -> {
+                                    if (followingIds.isEmpty()) return Flux.empty();
+                                    return questionRepository.findByAuthorIdInOrderByCreatedAtDesc(
+                                            followingIds, PageRequest.of(page, size));
+                                })
+                                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
+                                .collectList()
+                                .map(items -> buildResponse(items, page, size))
+                                .flatMap(response ->
+                                        feedCacheService.cacheFollowingFeed(response, userId, page, size)
+                                                .thenReturn(response))
+                );
+    }
+
     // ─── Read from Redis Sorted Set ───────────────────────────────────────
 
-    private Mono<FeedResponseDTO> getFeedFromRedis(
-            String feedKey, String cursor, int size) {
-
+    private Mono<FeedResponseDTO> getFeedFromRedis(String feedKey, String cursor, int size) {
         long startRank = decodeCursor(cursor);
         long endRank = startRank + size - 1;
 
         return reactiveRedisTemplate.opsForZSet()
                 .reverseRangeWithScores(feedKey,
                         org.springframework.data.domain.Range.closed(startRank, endRank))
-                .flatMap(typedTuple -> fetchQuestionAsItem(typedTuple))
+                .flatMap(this::fetchQuestionAsItem)
                 .collectList()
                 .map(items -> {
                     String nextCursor = items.size() == size
@@ -82,8 +160,7 @@ public class FeedServiceImpl implements FeedService {
                 });
     }
 
-    private Mono<FeedItemDTO> fetchQuestionAsItem(
-            ZSetOperations.TypedTuple<String> tuple) {
+    private Mono<FeedItemDTO> fetchQuestionAsItem(ZSetOperations.TypedTuple<String> tuple) {
         String questionId = tuple.getValue();
         double score = tuple.getScore() != null ? tuple.getScore() : 0.0;
 
@@ -95,7 +172,7 @@ public class FeedServiceImpl implements FeedService {
                 });
     }
 
-    // ─── Fallback — Pull from MongoDB when Redis is empty ─────────────────
+    // ─── Fallback — Pull from MongoDB when Redis sorted set is empty ──────
 
     private Mono<FeedResponseDTO> getFallbackFeed(String userId, int size) {
         return Flux.merge(
@@ -119,63 +196,6 @@ public class FeedServiceImpl implements FeedService {
                         .build());
     }
 
-    // ─── Individual Feed Sources ──────────────────────────────────────────
-
-    @Override
-    public Mono<FeedResponseDTO> getLatestFeed(int page, int size) {
-        return questionRepository
-                .findAllByOrderByCreatedAtDesc(
-                        PageRequest.of(page, size))
-                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
-                .collectList()
-                .map(items -> buildResponse(items, page, size));
-    }
-
-    @Override
-    public Mono<FeedResponseDTO> getTrendingFeed(int page, int size) {
-        return questionRepository
-                .findAllByOrderByUpvotesDesc(
-                        PageRequest.of(page, size))
-                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
-                .collectList()
-                .map(items -> buildResponse(items, page, size));
-    }
-
-    @Override
-    public Mono<FeedResponseDTO> getTagFeed(String userId, int page, int size) {
-        return userRepository.findById(userId)
-                .flatMapMany(user -> {
-                    if (user.getInterests() == null || user.getInterests().isEmpty()) {
-                        return questionRepository.findAllByOrderByCreatedAtDesc(
-                                PageRequest.of(page, size));
-                    }
-                    return questionRepository
-                            .findByTagsInOrderByCreatedAtDesc(
-                                    user.getInterests(),
-                                    PageRequest.of(page, size));
-                })
-                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
-                .collectList()
-                .map(items -> buildResponse(items, page, size));
-    }
-
-    @Override
-    public Mono<FeedResponseDTO> getFollowingFeed(String userId, int page, int size) {
-        return followRepository.findByFollowerId(userId)
-                .map(follow -> follow.getFollowingId())
-                .collectList()
-                .flatMapMany(followingIds -> {
-                    if (followingIds.isEmpty()) return Flux.empty();
-                    return questionRepository
-                            .findByAuthorIdInOrderByCreatedAtDesc(
-                                    followingIds,
-                                    PageRequest.of(page, size));
-                })
-                .map(q -> toFeedItem(q, scoreCalculator.calculate(q)))
-                .collectList()
-                .map(items -> buildResponse(items, page, size));
-    }
-
     // ─── Private Helpers ──────────────────────────────────────────────────
 
     private Flux<Question> getFollowingQuestions(String userId, int size) {
@@ -196,8 +216,7 @@ public class FeedServiceImpl implements FeedService {
     }
 
     private Flux<Question> getTrendingQuestions(int size) {
-        return questionRepository.findAllByOrderByUpvotesDesc(
-                PageRequest.of(0, size));
+        return questionRepository.findAllByOrderByUpvotesDesc(PageRequest.of(0, size));
     }
 
     private FeedItemDTO toFeedItem(Question question, double score) {
@@ -220,7 +239,7 @@ public class FeedServiceImpl implements FeedService {
         boolean hasMore = items.size() == size;
         return FeedResponseDTO.builder()
                 .items(items)
-                .nextCursor(hasMore ? encodeCursor(((long)(page + 1) * size)) : null)
+                .nextCursor(hasMore ? encodeCursor(((long) (page + 1) * size)) : null)
                 .hasMore(hasMore)
                 .size(items.size())
                 .build();
