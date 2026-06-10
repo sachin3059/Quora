@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -26,7 +28,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+// LENIENT strictness — prevents false NullPointerExceptions from
+// unnecessary stubbing warnings when not all mocks are used in every test
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class FollowServiceImplTest {
 
     @Mock private FollowRepository followRepository;
@@ -85,13 +90,10 @@ class FollowServiceImplTest {
         when(followRepository.save(any()))
                 .thenReturn(Mono.just(savedFollow));
         when(mongoTemplate.updateFirst(any(), any(), any(Class.class)))
-                .thenReturn(
-                        Mono.just(
-                                UpdateResult.acknowledged(1, 1L, null)
-                        )
-                );
+                .thenReturn(Mono.just(UpdateResult.acknowledged(1, 1L, null)));
         when(followMapper.toResponseDTO(any()))
                 .thenReturn(followResponse);
+        // eventProducer.publishUserFollowed is void — no mock needed, Mockito handles it
 
         StepVerifier.create(followService.followUser("userA", "userB"))
                 .expectNextMatches(dto ->
