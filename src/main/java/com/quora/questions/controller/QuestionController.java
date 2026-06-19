@@ -1,6 +1,7 @@
 package com.quora.questions.controller;
 
 
+import com.quora.questions.dto.CursorPage;
 import com.quora.questions.dto.QuestionRequestDTO;
 import com.quora.questions.dto.QuestionResponseDTO;
 import com.quora.questions.service.QuestionService;
@@ -28,8 +29,10 @@ public class QuestionController {
     }
 
     @GetMapping
-    public Flux<QuestionResponseDTO> getAllQuestions(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        return questionService.getAllQuestions(page, size);
+    public Mono<CursorPage<QuestionResponseDTO>> getAllQuestions(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "10") int size) {
+        return questionService.getAllQuestions(cursor, size);
     }
 
     @GetMapping("/{id}")

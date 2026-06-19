@@ -18,7 +18,11 @@ public class FeedCacheInvalidationConsumer {
 
     // ─── Vote cast → trending scores changed → evict trending cache ───────
 
-    @KafkaListener(topics = "quora.vote.cast", groupId = "feed-cache-vote-group")
+    @KafkaListener(
+            topics = "quora.vote.cast",
+            groupId = "feed-cache-vote-group",
+            containerFactory = "voteCastListenerFactory"
+    )
     public void onVoteCast(VoteCastEvent event) {
         log.info("VoteCastEvent received — evicting trending feed cache");
         feedCacheService.evictTrending()
@@ -28,7 +32,11 @@ public class FeedCacheInvalidationConsumer {
 
     // ─── Question posted → evict latest + tag caches ──────────────────────
 
-    @KafkaListener(topics = "quora.question.posted", groupId = "feed-cache-question-group")
+    @KafkaListener(
+            topics = "quora.question.posted",
+            groupId = "feed-cache-question-group",
+            containerFactory = "questionPostedListenerFactory"
+    )
     public void onQuestionPosted(QuestionPostedEvent event) {
         log.info("QuestionPostedEvent received — evicting latest and tag feed caches for author: {}", event.getAuthorId());
         feedCacheService.evictLatest()
@@ -39,7 +47,11 @@ public class FeedCacheInvalidationConsumer {
 
     // ─── User followed → following feed changed → evict following cache ───
 
-    @KafkaListener(topics = "quora.user.followed", groupId = "feed-cache-follow-group")
+    @KafkaListener(
+            topics = "quora.user.followed",
+            groupId = "feed-cache-follow-group",
+            containerFactory = "userFollowedListenerFactory"
+    )
     public void onUserFollowed(UserFollowedEvent event) {
         log.info("UserFollowedEvent received — evicting following feed cache for follower: {}", event.getFollowerId());
         feedCacheService.evictFollowingFeed(event.getFollowerId())
