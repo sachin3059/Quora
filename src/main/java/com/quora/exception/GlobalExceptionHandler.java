@@ -47,15 +47,15 @@ public class GlobalExceptionHandler {
         ));
     }
 
-    // 403 — Unauthorized
+    // 401 — Unauthorized
     @ExceptionHandler(UnauthorizedException.class)
     public Mono<ErrorResponse> handleUnauthorizedException(
             UnauthorizedException ex,
             ServerWebExchange exchange) {
         log.warn("Unauthorized access: {}", ex.getMessage());
         return Mono.just(new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
-                "Forbidden",
+                HttpStatus.UNAUTHORIZED.value(),
+                "Unauthorized",
                 ex.getMessage(),
                 exchange.getRequest().getPath().value(),
                 Instant.now()

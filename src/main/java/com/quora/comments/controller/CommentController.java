@@ -36,7 +36,9 @@ public class CommentController {
     public Mono<CommentResponseDTO> addReplyToComment(
             @PathVariable String commentId,
             @Valid @RequestBody CommentRequestDTO requestDTO,
-            @RequestHeader("X-User-Id") String authorId) {
+            Authentication authentication) {
+        
+        String authorId = (String)authentication.getPrincipal();
 
         return commentService.createReplyOnComment(requestDTO, authorId, commentId);
     }

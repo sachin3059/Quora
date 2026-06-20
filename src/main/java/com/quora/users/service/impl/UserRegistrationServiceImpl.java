@@ -37,7 +37,7 @@ public class UserRegistrationServiceImpl implements UserRegistrationService {
     private Mono<Void> checkUsernameNotTaken(String username) {
         return userRepository.existsByUsername(username)
                 .flatMap(exists -> exists
-                        ? Mono.error(new RuntimeException("Username already taken: " + username))
+                        ? Mono.error(new DuplicateResourceException("Username already taken: " + username))
                         : Mono.empty());
     }
 

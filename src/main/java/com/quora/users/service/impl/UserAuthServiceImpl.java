@@ -53,19 +53,23 @@ public class UserAuthServiceImpl implements UserAuthService {
         return refreshTokenService.validateRefreshToken(refreshToken)
                 .flatMap(token -> userRepository.findById(token.getUserId())
                         .switchIfEmpty(Mono.error(new ResourceNotFoundException("User", token.getUserId())))
-                        .map(user -> {
+                        .flatMap(user -> {
+                            if (!user.isActive()) {
+                                return Mono.error(new UnauthorizedException("Account is deactivated"));
+                            }
+    
                             String newAccessToken = jwtService.generateToken(
                                     user.getId(), user.getEmail(), user.getRole().name());
-
-                            return AuthResponseDTO.builder()
+    
+                            return Mono.just(AuthResponseDTO.builder()
                                     .accessToken(newAccessToken)
-                                    .refreshToken(refreshToken)   // same refresh token returned
+                                    .refreshToken(refreshToken)
                                     .expiresIn(accessTokenExpirationMs / 1000)
-                                    .build();
+                                    .build());
                         }));
     }
 
-    // ─── Logout — revoke all refresh tokens for user ──────────────────────
+    // ─── Logout — revoke all refresh tokens for user from all device ──────────────────────
 
     @Override
     public Mono<Void> logout(String userId) {
@@ -79,7 +83,7 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("User", email)))
                 .flatMap(user -> user.isActive()
                         ? Mono.just(user)
-                        : Mono.error(new RuntimeException("Account is deactivated")));
+                        : Mono.error(new UnauthorizedException("Account is deactivated")));
     }
 
     private Mono<Void> verifyPassword(String rawPassword, String encodedPassword) {
