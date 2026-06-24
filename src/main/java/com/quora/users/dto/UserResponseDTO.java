@@ -17,11 +17,7 @@ public class UserResponseDTO {
     private String id;
     private String username;
     private String email;
-    private String fullName;
-    private String bio;
     private String profileImageUrl;
-    private Role role;
-    private long reputation;
     private long followersCount;
     private long followingCount;
     private Instant createdAt;

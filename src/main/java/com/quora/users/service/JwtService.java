@@ -10,9 +10,6 @@ public interface JwtService {
     // Extracts the userId from a valid token
     String extractUserId(String token);
 
-    // Extracts the role from a valid token
-    String extractRole(String token);
-
     // Validates the token — signature + expiry
     boolean isTokenValid(String token);
 }

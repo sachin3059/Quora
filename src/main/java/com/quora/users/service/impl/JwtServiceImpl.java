@@ -33,14 +33,13 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
-    public String generateToken(String userId, String email, String role) {
+    public String generateToken(String userId, String email) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(userId)                   // userId stored as subject
                 .claim("email", email)
-                .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
@@ -52,10 +51,6 @@ public class JwtServiceImpl implements JwtService {
         return parseClaims(token).getSubject();
     }
 
-    @Override
-    public String extractRole(String token) {
-        return parseClaims(token).get("role", String.class);
-    }
 
     @Override
     public boolean isTokenValid(String token) {

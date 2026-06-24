@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -41,7 +40,6 @@ public class JwtAuthenticationFilter implements WebFilter {
         }
 
         String userId = jwtService.extractUserId(token);
-        String role = jwtService.extractRole(token);
 
         exchange.getAttributes().put("userId", userId);
 
@@ -49,8 +47,7 @@ public class JwtAuthenticationFilter implements WebFilter {
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
                         userId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                        null
                 );
 
         // Inject into reactive security context for downstream use

@@ -45,19 +45,20 @@ public class UserController {
         return userAuthService.refreshAccessToken(dto.getRefreshToken());
     }
 
-    // ─── User Routes (authenticated) ─────────────────────────────────────
+    // Revoke refresh tokens — invalidates all sessions for the user
+    @PostMapping("/auth/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> logout(Authentication authentication) {
+        String userId = (String) authentication.getPrincipal();
+        return userAuthService.logout(userId);
+    }
+
 
     // Get own profile using JWT — no need to pass userId in URL
     @GetMapping("/users/me")
     public Mono<UserResponseDTO> getMyProfile(Authentication authentication) {
         String userId = (String) authentication.getPrincipal();
         return userQueryService.getUserById(userId);
-    }
-
-    // Get any user's public profile by username
-    @GetMapping("/users/{username}")
-    public Mono<UserResponseDTO> getUserByUsername(@PathVariable String username) {
-        return userQueryService.getUserByUsername(username);
     }
 
     // Update own profile
@@ -69,18 +70,18 @@ public class UserController {
         return userQueryService.updateProfile(userId, dto);
     }
 
-    // Revoke refresh tokens — invalidates all sessions for the user
-    @PostMapping("/auth/logout")
+    // Delete own account
+    @DeleteMapping("/users/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> logout(Authentication authentication) {
+    public Mono<Void> deleteAccount(Authentication authentication) {
         String userId = (String) authentication.getPrincipal();
-        return userAuthService.logout(userId);
+        return userQueryService.deleteAccount(userId);
     }
 
-    // ─── Admin Routes ─────────────────────────────────────────────────────
 
-    @GetMapping("/admin/users")
-    public Flux<UserResponseDTO> getAllActiveUsers() {
-        return userQueryService.getAllActiveUsers();
+    // Get any user's public profile by username
+    @GetMapping("/users/{username}")
+    public Mono<UserResponseDTO> getUserByUsername(@PathVariable String username) {
+        return userQueryService.getUserByUsername(username);
     }
 }

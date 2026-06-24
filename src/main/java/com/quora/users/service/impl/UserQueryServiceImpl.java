@@ -35,9 +35,13 @@ public class UserQueryServiceImpl implements UserQueryService {
 
     @Override
     public Mono<UserResponseDTO> getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-                .switchIfEmpty(Mono.error(new RuntimeException("User not found with username: " + username)))
-                .map(userMapper::toResponseDTO);
+        return userCacheService.getCachedUser(username)
+                .switchIfEmpty(
+                    userRepository.findByUsername(username)
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("User", username)))
+                        .map(userMapper::toResponseDTO)
+                        .flatMap(user -> userCacheService.cacheUser(user).thenReturn(user))
+                );
     }
 
     @Override
@@ -51,18 +55,10 @@ public class UserQueryServiceImpl implements UserQueryService {
                 .map(userMapper::toResponseDTO);
     }
 
-    @Override
-    public Flux<UserResponseDTO> getAllActiveUsers() {
-        return userRepository.findByIsActiveTrue()
-                .map(userMapper::toResponseDTO);
-    }
 
     // Only updates fields that are explicitly provided — null fields are ignored
     private void applyUpdates(com.quora.users.model.User user, UpdateProfileRequestDTO dto) {
-        if (dto.getFullName() != null) user.setFullName(dto.getFullName());
-        if (dto.getBio() != null) user.setBio(dto.getBio());
         if (dto.getUsername() != null) user.setUsername(dto.getUsername());
         if (dto.getProfileImageUrl() != null) user.setProfileImageUrl(dto.getProfileImageUrl());
-        user.setUpdatedAt(Instant.now());
     }
 }

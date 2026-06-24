@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LoginRequestDTO {
-
     @NotBlank(message = "Email cannot be blank")
     @Email(message = "Invalid email format")
     private String email;

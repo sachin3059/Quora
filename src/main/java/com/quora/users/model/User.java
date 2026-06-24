@@ -30,20 +30,9 @@ public class User {
     @Indexed(unique = true)
     private String email;
 
-    private String passwordHash;
+    private String password;
 
-    private String fullName;
-    private String bio;
     private String profileImageUrl;
-
-    @Builder.Default
-    private Role role = Role.USER;
-
-    @Builder.Default
-    private boolean isActive = true;
-
-    @Builder.Default
-    private long reputation = 0L;
 
     @Builder.Default
     private long followersCount = 0L;
@@ -55,6 +44,4 @@ public class User {
     private List<String> interests = new ArrayList<>();
 
     private Instant createdAt;
-    private Instant updatedAt;
-    private Instant lastLogin;
 }

@@ -31,11 +31,11 @@ public class UserAuthServiceImpl implements UserAuthService {
     @Override
     public Mono<AuthResponseDTO> login(LoginRequestDTO dto) {
         return findActiveUserByEmail(dto.getEmail())
-                .flatMap(user -> verifyPassword(dto.getPassword(), user.getPasswordHash())
+                .flatMap(user -> verifyPassword(dto.getPassword(), user.getPassword())
                         .thenReturn(user))
                 .flatMap(user -> {
                     String accessToken = jwtService.generateToken(
-                            user.getId(), user.getEmail(), user.getRole().name());
+                            user.getId(), user.getEmail());
 
                     return refreshTokenService.createRefreshToken(user.getId())
                             .map(refreshToken -> AuthResponseDTO.builder()
@@ -54,12 +54,8 @@ public class UserAuthServiceImpl implements UserAuthService {
                 .flatMap(token -> userRepository.findById(token.getUserId())
                         .switchIfEmpty(Mono.error(new ResourceNotFoundException("User", token.getUserId())))
                         .flatMap(user -> {
-                            if (!user.isActive()) {
-                                return Mono.error(new UnauthorizedException("Account is deactivated"));
-                            }
-    
                             String newAccessToken = jwtService.generateToken(
-                                    user.getId(), user.getEmail(), user.getRole().name());
+                                    user.getId(), user.getEmail());
     
                             return Mono.just(AuthResponseDTO.builder()
                                     .accessToken(newAccessToken)
@@ -81,9 +77,7 @@ public class UserAuthServiceImpl implements UserAuthService {
     private Mono<com.quora.users.model.User> findActiveUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("User", email)))
-                .flatMap(user -> user.isActive()
-                        ? Mono.just(user)
-                        : Mono.error(new UnauthorizedException("Account is deactivated")));
+                .flatMap(user -> Mono.just(user));
     }
 
     private Mono<Void> verifyPassword(String rawPassword, String encodedPassword) {
