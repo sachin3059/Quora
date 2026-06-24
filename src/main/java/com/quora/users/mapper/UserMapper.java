@@ -2,7 +2,6 @@ package com.quora.users.mapper;
 
 import com.quora.users.dto.RegisterRequestDTO;
 import com.quora.users.dto.UserResponseDTO;
-import com.quora.users.enums.Role;
 import com.quora.users.model.User;
 import org.springframework.stereotype.Component;
 
@@ -18,11 +17,10 @@ public class UserMapper {
                 .username(dto.getUsername())
                 .email(dto.getEmail())
                 .password(encodedPassword)
-                .profileImageUrl(DEFAULT_AVATAR_BASE_URL + dto.username().replace(" ", "+"))
+                .profileImageUrl(DEFAULT_AVATAR_BASE_URL + dto.getUsername().replace(" ", "+"))
                 .followersCount(0L)
                 .followingCount(0L)
                 .createdAt(Instant.now())
-                .updatedAt(Instant.now())
                 .build();
     }
 

@@ -9,4 +9,5 @@ public interface UserQueryService {
     Mono<UserResponseDTO> getUserById(String id);
     Mono<UserResponseDTO> getUserByUsername(String username);
     Mono<UserResponseDTO> updateProfile(String userId, UpdateProfileRequestDTO dto);
+    Mono<Void> deleteAccount(String userId);
 }

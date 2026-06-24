@@ -5,7 +5,7 @@ import reactor.core.publisher.Mono;
 public interface JwtService {
 
     // Generates a signed JWT token for the given user details
-    String generateToken(String userId, String email, String role);
+    String generateToken(String userId, String email);
 
     // Extracts the userId from a valid token
     String extractUserId(String token);

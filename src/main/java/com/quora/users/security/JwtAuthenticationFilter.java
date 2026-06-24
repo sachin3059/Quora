@@ -47,7 +47,9 @@ public class JwtAuthenticationFilter implements WebFilter {
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
                         userId,
-                        null
+                        null,
+                        List.of()
+
                 );
 
         // Inject into reactive security context for downstream use

@@ -55,6 +55,13 @@ public class UserQueryServiceImpl implements UserQueryService {
                 .map(userMapper::toResponseDTO);
     }
 
+    @Override
+    public Mono<Void> deleteAccount(String userId) {
+        return userRepository.deleteById(userId)
+                .then(userCacheService.evictUser(userId))
+                .then();
+    }
+
 
     // Only updates fields that are explicitly provided — null fields are ignored
     private void applyUpdates(com.quora.users.model.User user, UpdateProfileRequestDTO dto) {

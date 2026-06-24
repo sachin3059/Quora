@@ -1,6 +1,5 @@
 package com.quora.users.dto;
 
-import com.quora.users.enums.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

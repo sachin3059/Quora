@@ -1,7 +1,5 @@
 package com.quora.users.model;
 
-
-import com.quora.users.enums.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

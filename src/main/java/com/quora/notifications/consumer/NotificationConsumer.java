@@ -198,9 +198,7 @@ public class NotificationConsumer {
 
     private Mono<String> getUserDisplayName(String userId) {
         return userRepository.findById(userId)
-                .map(user -> user.getFullName() != null
-                        ? user.getFullName()
-                        : user.getUsername())
+                .map(user ->  user.getUsername())
                 .defaultIfEmpty("Someone");
     }
 
