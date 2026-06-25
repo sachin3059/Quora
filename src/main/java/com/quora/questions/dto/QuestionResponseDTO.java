@@ -21,6 +21,5 @@ public class QuestionResponseDTO {
     private List<String> tags;
     private long upvotes;
     private int answerCount;
-    private int commentCount;
     private Instant createdAt;
 }

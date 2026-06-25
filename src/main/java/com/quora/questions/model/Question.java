@@ -39,8 +39,5 @@ public class Question {
     @Builder.Default
     private int answerCount = 0;
 
-    @Builder.Default
-    private int commentCount = 0;
-
     private Instant createdAt;
 }

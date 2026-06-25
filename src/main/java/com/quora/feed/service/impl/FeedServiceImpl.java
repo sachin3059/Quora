@@ -229,7 +229,6 @@ public class FeedServiceImpl implements FeedService {
                 .upvotes(question.getUpvotes())
                 .downvotes(question.getDownvotes())
                 .answerCount(question.getAnswerCount())
-                .commentCount(question.getCommentCount())
                 .feedScore(score)
                 .createdAt(question.getCreatedAt())
                 .build();

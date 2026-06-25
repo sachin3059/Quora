@@ -23,7 +23,6 @@ public class QuestionController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<QuestionResponseDTO> createQuestion(@Valid @RequestBody QuestionRequestDTO questionRequestDTO, Authentication authentication) {
-        // We will pass a hardcoded "user_123" for now until we integrate Security/JWT
         String userId = (String)authentication.getPrincipal();
         return questionService.createQuestion(questionRequestDTO, userId);
     }
@@ -34,6 +33,7 @@ public class QuestionController {
             @RequestParam(defaultValue = "10") int size) {
         return questionService.getAllQuestions(cursor, size);
     }
+
 
     @GetMapping("/{id}")
     public Mono<QuestionResponseDTO> getQuestionById(@PathVariable String id) {
