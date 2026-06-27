@@ -2,7 +2,9 @@ package com.quora.comments.mapper;
 
 import com.quora.comments.dto.CommentRequestDTO;
 import com.quora.comments.dto.CommentResponseDTO;
+import com.quora.users.dto.UserSummaryDTO;
 import com.quora.comments.model.Comment;
+import com.quora.users.model.User;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -10,7 +12,7 @@ import java.time.Instant;
 @Component
 public class CommentMapper {
 
-    public Comment toEntity(CommentRequestDTO dto, String authorId, String parentId, String parentType, String rootId) {
+    public Comment toEntity(CommentRequestDTO dto, String authorId, String parentId, String parentType, String rootId, User user) {
         if (dto == null) {
             return null;
         }
@@ -18,6 +20,8 @@ public class CommentMapper {
         return Comment.builder()
                 .content(dto.getContent())
                 .authorId(authorId)
+                .authorUsername(user.getUsername())
+                .authorProfileImageUrl(user.getProfileImageUrl())
                 .parentId(parentId)
                 .parentType(parentType.toUpperCase()) // Ensures ANSWER or COMMENT consistency
                 .rootId(rootId)
@@ -36,7 +40,11 @@ public class CommentMapper {
         return CommentResponseDTO.builder()
                 .id(entity.getId())
                 .content(entity.getContent())
-                .authorId(entity.getAuthorId())
+                .author(UserSummaryDTO.builder()
+                            .id(entity.getAuthorId())
+                            .username(entity.getAuthorUsername())
+                            .profileImageUrl(entity.getAuthorProfileImageUrl())
+                            .build())
                 .parentId(entity.getParentId())
                 .parentType(entity.getParentType())
                 .rootId(entity.getRootId())

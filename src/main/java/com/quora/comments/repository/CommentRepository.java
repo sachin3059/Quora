@@ -24,4 +24,6 @@ public interface CommentRepository extends ReactiveMongoRepository<Comment, Stri
 
     // 5. Count how many times a specific comment has been replied to
     Mono<Long> countByParentId(String parentId);
+
+    Flux<Comment> findByAuthorId(String authorId);
 }

@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.quora.users.dto.UserSummaryDTO;
 
 
 import java.time.Instant;
@@ -19,7 +20,7 @@ public class CommentResponseDTO {
     private String parentType;     // ANSWER or COMMENT
     private String rootId;   // Always ties back to the main answer container
     private String content;
-    private String authorId;
+    private UserSummaryDTO author;
 
     private long upvotes;
     private long downvotes;
