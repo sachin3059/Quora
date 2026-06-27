@@ -2,15 +2,18 @@ package com.quora.answers.service;
 
 import com.quora.answers.dto.AnswerRequestDTO;
 import com.quora.answers.dto.AnswerResponseDTO;
+import com.quora.users.dto.UserSummaryDTO;
 import com.quora.answers.mapper.AnswerMapper;
 import com.quora.answers.repository.AnswerRepository;
 import com.quora.kafka.events.AnswerPostedEvent;
 import com.quora.kafka.producer.EventProducer;
 import com.quora.questions.repository.QuestionRepository;
+import com.quora.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.quora.answers.model.Answer;
 
 @Service
 @RequiredArgsConstructor
@@ -18,28 +21,28 @@ public class AnswerService {
 
     private final AnswerRepository answerRepository;
     private final AnswerMapper answerMapper;
-
     private final QuestionRepository questionRepository;
     private final EventProducer eventProducer;
+    private final UserRepository userRepository;
 
     public Mono<AnswerResponseDTO> createAnswer(AnswerRequestDTO answerRequestDTO, String authorId, String questionId) {
         return questionRepository.findById(questionId)
                                 .switchIfEmpty(Mono.error(new RuntimeException("Question not found: " + questionId)))
-                                .flatMap(question ->
-                                        Mono.just(answerMapper.toEntity(answerRequestDTO, authorId, questionId))
-                                                .flatMap(answerRepository::save)
-                                                .doOnSuccess(answer -> eventProducer.publishAnswerPosted(
-                                                        AnswerPostedEvent.builder()
-                                                                .answerId(answer.getId())
-                                                                .authorId(authorId)
-                                                                .questionId(questionId)
-                                                                .questionAuthorId(question.getAuthorId())
-                                                                .build()
+                                .flatMap(question -> userRepository.findById(authorId)
+                                        .switchIfEmpty(Mono.error(new RuntimeException("User not found: " + authorId)))
+                                        .flatMap(author -> {
+                                            Answer answer = answerMapper.toEntity(answerRequestDTO, authorId, questionId, author);
+                                            return answerRepository.save(answer)
+                                                .doOnSuccess(saved -> eventProducer.publishAnswerPosted(
+                                                    AnswerPostedEvent.builder()
+                                                            .answerId(saved.getId())
+                                                            .authorId(authorId)
+                                                            .questionId(questionId)
+                                                            .questionAuthorId(question.getAuthorId())
+                                                            .build()
                                                 ))
-                                                .map(answerMapper::toResponseDTO)
-
-                                        );
-
+                                                .map(answerMapper::toResponseDTO);
+                                        }));
     }
 
     public Flux<AnswerResponseDTO> getTopAnswers(String questionId) {

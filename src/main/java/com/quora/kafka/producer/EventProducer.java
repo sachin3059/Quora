@@ -40,4 +40,9 @@ public class EventProducer {
         log.info("Published UserFollowedEvent: {} followed {}",
                 event.getFollowerId(), event.getFollowingId());
     }
+
+    public void publishUserUpdated(UserUpdatedEvent event) {
+        kafkaTemplate.send(KafkaConfig.USER_UPDATED_TOPIC, event.getUserId(), event);
+        log.info("Published UserUpdatedEvent for user: {}", event.getUserId());
+    }
 }

@@ -31,6 +31,7 @@ public class KafkaConfig {
     public static final String COMMENT_POSTED_TOPIC = "quora.comment.posted";
     public static final String QUESTION_POSTED_TOPIC = "quora.question.posted";
     public static final String USER_FOLLOWED_TOPIC = "quora.user.followed";
+    public static final String USER_UPDATED_TOPIC = "quora.user.updated";
 
     // Topic Beans
     @Bean
@@ -71,6 +72,14 @@ public class KafkaConfig {
                 .partitions(3)
                 .replicas(1)
                 .build();
+    }
+
+    @Bean
+    public NewTopic userUpdatedTopic() {
+        return TopicBuilder.name(USER_UPDATED_TOPIC)
+                    .partitions(3)
+                    .replicas(1)
+                    .build();
     }
 
 
@@ -119,6 +128,12 @@ public class KafkaConfig {
     public ConcurrentKafkaListenerContainerFactory<String, UserFollowedEvent>
     userFollowedListenerFactory() {
         return buildFactory(UserFollowedEvent.class);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, UserUpdatedEvent>
+    userUpdatedListenerFactory() {
+        return buildFactory(UserUpdatedEvent.class);
     }
 
 

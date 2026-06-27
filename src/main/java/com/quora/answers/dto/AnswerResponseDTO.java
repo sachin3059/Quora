@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.quora.users.dto.UserSummaryDTO;
 
 import java.time.Instant;
 
@@ -16,7 +17,7 @@ public class AnswerResponseDTO {
 
     private String id;
     private String questionId;
-    private String authorId;
+    private UserSummaryDTO author;
     private String content;
     private long upvotes;
     private long downvotes;

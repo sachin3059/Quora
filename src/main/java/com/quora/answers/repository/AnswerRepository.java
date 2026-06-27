@@ -21,6 +21,8 @@ public interface AnswerRepository extends ReactiveMongoRepository<Answer, String
     // 4. Content Verification: Checks if a question already has an accepted/verified solution
     Flux<Answer> findByQuestionIdAndIsAcceptedTrue(String questionId);
 
+    Flux<Answer> findByAuthorId(String authorId);
+
     // 5. Count total number of answers for a specific question
     Mono<Long> countByQuestionId(String questionId);
 

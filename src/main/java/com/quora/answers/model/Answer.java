@@ -23,6 +23,8 @@ public class Answer {
     private String content;
 
     private String authorId;
+    private String authorUsername;         // denormalized
+    private String authorProfileImageUrl;  // denormalized
 
     @Builder.Default
     private long upvotes = 0L;

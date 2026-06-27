@@ -3,6 +3,7 @@ package com.quora.questions.mapper;
 
 import com.quora.questions.dto.QuestionRequestDTO;
 import com.quora.questions.dto.QuestionResponseDTO;
+import com.quora.users.dto.UserSummaryDTO;
 import com.quora.questions.model.Question;
 import org.springframework.stereotype.Component;
 
