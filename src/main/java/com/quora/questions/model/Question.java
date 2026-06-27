@@ -27,6 +27,9 @@ public class Question {
     private String content;
 
     private String authorId;
+    private String authorUsername;         // denormalized
+    private String authorProfileImageUrl;  // denormalized
+
 
     private List<String> tags;
 

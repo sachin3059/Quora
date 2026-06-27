@@ -6,13 +6,14 @@ import com.quora.questions.dto.QuestionResponseDTO;
 import com.quora.users.dto.UserSummaryDTO;
 import com.quora.questions.model.Question;
 import org.springframework.stereotype.Component;
+import com.quora.users.model.User;
 
 import java.time.Instant;
 
 @Component
 public class QuestionMapper {
 
-    public Question toEntity(QuestionRequestDTO requestDTO, String authorId) {
+    public Question toEntity(QuestionRequestDTO requestDTO, String authorId, User author) {
         if(requestDTO == null){
             return null;
         }
@@ -22,6 +23,8 @@ public class QuestionMapper {
                 .content(requestDTO.getContent())
                 .tags(requestDTO.getTags())
                 .authorId(authorId)
+                .authorUsername(author.getUsername())
+                .authorProfileImageUrl(author.getProfileImageUrl())
                 .createdAt(Instant.now())
                 .build();
     }
@@ -35,7 +38,11 @@ public class QuestionMapper {
                 .id(question.getId())
                 .title(question.getTitle())
                 .content(question.getContent())
-                .authorId(question.getAuthorId())
+                .author(UserSummaryDTO.builder()
+                    .id(question.getAuthorId())
+                    .username(question.getAuthorUsername())
+                    .profileImageUrl(question.getAuthorProfileImageUrl())
+                    .build())
                 .tags(question.getTags())
                 .upvotes(question.getUpvotes())
                 .answerCount(question.getAnswerCount())

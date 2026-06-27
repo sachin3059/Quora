@@ -43,5 +43,7 @@ public interface QuestionRepository extends ReactiveMongoRepository<Question,Str
     // Cursor pagination — next pages (where _id < cursorId)
     Flux<Question> findByIdLessThanOrderByIdDesc(String cursorId, Pageable pageable);
 
+    Flux<Question> findByAuthorId(String authorId);
+
 
 }
