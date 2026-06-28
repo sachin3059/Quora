@@ -70,11 +70,23 @@ services:
       - quora-network
     restart: always
 
+
+  # ------------- OllAMA ----------------------
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+  
+
 volumes:
   mongodb_data:
     external: true
     name: 083bbbe09ce837caf1d2368113b5a60695255cfc0fd3d8f03c4894d80ce85d8d
   redis_data:
+  ollama_data:
 
 networks:
   quora-network:

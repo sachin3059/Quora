@@ -79,15 +79,8 @@ public class QuestionService {
 
     public Mono<QuestionResponseDTO> getQuestionById(String id) {
         return questionRepository.findById(id)
-                .map(questionMapper::toResponseDTO) // ✅ zero user DB calls
+                .map(questionMapper::toResponseDTO) 
                 .switchIfEmpty(Mono.error(new RuntimeException("Question with id " + id + " not found")));
-    }
-
-    public Flux<QuestionResponseDTO> searchQuestions(String keywords, int page, int size) {
-        TextCriteria criteria = TextCriteria.forDefaultLanguage().matchingAny(keywords);
-        Pageable pageable = PageRequest.of(page, size);
-        return questionRepository.findAllBy(criteria, pageable)
-                .map(questionMapper::toResponseDTO); // ✅ zero user DB calls
     }
 
     private String encodeCursor(String id) {

@@ -69,6 +69,13 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.9'
 
 
+     // Pinecone
+    implementation 'io.pinecone:pinecone-client:2.0.0'
+    
+    // OkHttp (for calling Ollama REST API)
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+
 }
 
 tasks.named('test') {

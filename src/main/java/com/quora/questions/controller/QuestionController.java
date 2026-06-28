@@ -5,6 +5,7 @@ import com.quora.questions.dto.CursorPage;
 import com.quora.questions.dto.QuestionRequestDTO;
 import com.quora.questions.dto.QuestionResponseDTO;
 import com.quora.questions.service.QuestionService;
+import com.quora.search.service.SemanticSearchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 public class QuestionController {
 
     private final QuestionService questionService;
+    private final SemanticSearchService semanticSearchService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -41,7 +43,9 @@ public class QuestionController {
     }
 
     @GetMapping("/search")
-    public Flux<QuestionResponseDTO> searchQuestions(@RequestParam String keywords, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        return questionService.searchQuestions(keywords, page, size);
+    public Flux<QuestionResponseDTO> searchQuestions(
+            @RequestParam String keywords,
+            @RequestParam(defaultValue = "10") int topK) {
+        return semanticSearchService.search(keywords, topK);
     }
 }
