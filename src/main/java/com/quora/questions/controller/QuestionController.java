@@ -48,4 +48,11 @@ public class QuestionController {
             @RequestParam(defaultValue = "10") int topK) {
         return semanticSearchService.search(keywords, topK);
     }
+
+    @GetMapping("/{id}/related")
+    public Flux<QuestionResponseDTO> getRelatedQuestionsByQuestionId(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "5") int topK) {
+        return semanticSearchService.findRelated(id, topK);
+    }
 }

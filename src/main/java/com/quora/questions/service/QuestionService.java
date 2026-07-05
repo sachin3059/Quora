@@ -83,6 +83,7 @@ public class QuestionService {
                 .switchIfEmpty(Mono.error(new RuntimeException("Question with id " + id + " not found")));
     }
 
+
     private String encodeCursor(String id) {
         return Base64.getEncoder().encodeToString(id.getBytes());
     }

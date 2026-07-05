@@ -25,4 +25,19 @@ public class SemanticSearchService {
                 .map(questionMapper::toResponseDTO)
                 .doOnComplete(() -> log.info("Semantic search complete for query: {}", query));
     }
+
+
+    public Flux<QuestionResponseDTO> findRelated(String questionId, int topK) {
+        return questionRepository.findById(questionId)
+                .flatMapMany(question -> {
+                    String text = question.getTitle() + " " + question.getContent();
+                    return ollamaEmbeddingService.generateEmbedding(text)
+                            .flatMap(embedding -> pineconeService.querySimilar(embedding, topK + 1))
+                            .flatMapMany(ids -> {
+                                ids.remove(questionId);
+                                return questionRepository.findAllById(ids);
+                            });
+                })
+                .map(questionMapper::toResponseDTO);
+    }   
 }
