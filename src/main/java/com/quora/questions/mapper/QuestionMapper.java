@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import com.quora.users.model.User;
 
 import java.time.Instant;
+import java.util.ArrayList;
 
 @Component
 public class QuestionMapper {
@@ -26,6 +27,7 @@ public class QuestionMapper {
                 .authorUsername(author.getUsername())
                 .authorProfileImageUrl(author.getProfileImageUrl())
                 .createdAt(Instant.now())
+                .imageUrls(requestDTO.getImageUrls() != null ? requestDTO.getImageUrls() : new ArrayList<>())
                 .build();
     }
 
@@ -46,6 +48,7 @@ public class QuestionMapper {
                 .tags(question.getTags())
                 .upvotes(question.getUpvotes())
                 .answerCount(question.getAnswerCount())
+                .imageUrls(question.getImageUrls())
                 .createdAt(question.getCreatedAt())
                 .build();
     }

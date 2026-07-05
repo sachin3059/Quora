@@ -7,6 +7,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+import java.util.ArrayList;
+
 
 @Data
 @Builder
@@ -16,4 +19,7 @@ public class AnswerRequestDTO {
     @NotBlank(message = "Answer content cannot be blank")
     @Size(min = 10, max = 5000, message = "Answer must be between 10 and 5000 characters")
     private String content;
+
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
 }

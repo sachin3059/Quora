@@ -8,8 +8,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+import java.util.ArrayList;
 import java.util.List;
+
 
 @Data
 @Builder
@@ -28,4 +29,7 @@ public class QuestionRequestDTO {
 
     @NotEmpty(message = "Provide at least one tag for the question")
     private List<String> tags;
+
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
 }

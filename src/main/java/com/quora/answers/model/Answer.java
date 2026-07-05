@@ -8,6 +8,9 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.ArrayList;
+
 
 @Data
 @Builder
@@ -34,6 +37,9 @@ public class Answer {
 
     @Builder.Default
     private boolean isAccepted = false;
+
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
 
     private Instant createdAt;
 }

@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import com.quora.users.dto.UserSummaryDTO;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.ArrayList;
 
 
 @Data
@@ -22,5 +24,6 @@ public class AnswerResponseDTO {
     private long upvotes;
     private long downvotes;
     private boolean isAccepted;
+    private List<String> imageUrls;
     private Instant createdAt;
 }

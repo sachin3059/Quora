@@ -60,6 +60,12 @@ app:
     host: https://questions-oxlc5r7.svc.aped-4627-b74a.pinecone.io
     index-name: questions
 
+  # ----------- CLOUDINARY -----------
+  cloudinary:
+    cloud-name: ddup7omgb
+    api-key: 824188554344677
+    api-secret: UAT4DVVhr1EtbVhTbCorug4EELw
+
 
 # -- SWAGGER
 

@@ -9,6 +9,7 @@ import lombok.Data;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 
 @Component
 public class AnswerMapper {
@@ -24,6 +25,7 @@ public class AnswerMapper {
                 .authorProfileImageUrl(author.getProfileImageUrl())
                 .questionId(questionId)
                 .createdAt(Instant.now())
+                .imageUrls(answerRequestDTO.getImageUrls() != null ? answerRequestDTO.getImageUrls() : new ArrayList<>())
                 .build();
     }
 
@@ -44,6 +46,7 @@ public class AnswerMapper {
                 .upvotes(answer.getUpvotes())
                 .downvotes(answer.getDownvotes())
                 .content(answer.getContent())
+                .imageUrls(answer.getImageUrls())
                 .createdAt(answer.getCreatedAt())
                 .build();
     }

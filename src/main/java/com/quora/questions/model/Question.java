@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
 
 @Data
 @Builder
@@ -41,6 +42,9 @@ public class Question {
 
     @Builder.Default
     private int answerCount = 0;
+
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
 
     private Instant createdAt;
 }

@@ -9,6 +9,7 @@ import com.quora.users.dto.UserSummaryDTO;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
 
 @Data
 @Builder
@@ -22,5 +23,7 @@ public class QuestionResponseDTO {
     private List<String> tags;
     private long upvotes;
     private int answerCount;
+    private List<String> imageUrls;
     private Instant createdAt;
+
 }
