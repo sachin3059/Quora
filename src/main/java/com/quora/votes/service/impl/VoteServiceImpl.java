@@ -2,7 +2,6 @@ package com.quora.votes.service.impl;
 
 import com.quora.comments.model.Comment;
 import com.quora.kafka.events.VoteCastEvent;
-import com.quora.kafka.producer.EventProducer;
 import com.quora.votes.dto.VoteRequestDTO;
 import com.quora.votes.dto.VoteResponseDTO;
 import com.quora.votes.enums.TargetType;
@@ -20,6 +19,8 @@ import com.quora.questions.model.Question;
 import com.quora.answers.model.Answer;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.quora.outbox.service.OutboxService;
+import com.quora.kafka.config.KafkaConfig;
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +29,8 @@ public class VoteServiceImpl implements VoteService {
     private final VoteRepository voteRepository;
     private final VoteMapper voteMapper;
     private final ReactiveMongoTemplate mongoTemplate;
-
-    private final EventProducer eventProducer;
+    private final OutboxService outboxService;
+    private final KafkaConfig kafkaConfig;
 
     @Override
     public Mono<VoteResponseDTO> castVote(VoteRequestDTO dto, String userId,
@@ -65,15 +66,17 @@ public class VoteServiceImpl implements VoteService {
 
         return atomicIncrement(existingVote.getTargetId(), targetType, field, -1)
                 .then(voteRepository.delete(existingVote))
-                .doOnTerminate(() -> eventProducer.publishVoteCast(
-                        VoteCastEvent.builder()
-                                .voterId(existingVote.getUserId())
-                                .targetId(existingVote.getTargetId())
-                                .targetType(targetType)
-                                .voteType(existingVote.getVoteType())
-                                .action("REMOVED")
-                                .build()
-                ))
+                .doOnTerminate(() -> outboxService.saveEvent(
+                    kafkaConfig.VOTE_CAST_TOPIC,
+                    existingVote.getTargetId(),
+                    VoteCastEvent.builder()
+                            .voterId(existingVote.getUserId())
+                            .targetId(existingVote.getTargetId())
+                            .targetType(targetType)
+                            .voteType(existingVote.getVoteType())
+                            .action("REMOVED")
+                            .build()
+                ).subscribe())
                 .then(Mono.empty()); // returns empty — vote removed
     }
 
@@ -92,16 +95,17 @@ public class VoteServiceImpl implements VoteService {
         return atomicIncrement(existingVote.getTargetId(), targetType, decrementField, -1)
                 .then(atomicIncrement(existingVote.getTargetId(), targetType, incrementField, 1))
                 .then(voteRepository.save(existingVote))
-                .doOnSuccess(vote -> eventProducer.publishVoteCast(
-                        VoteCastEvent.builder()
-                                .voterId(existingVote.getUserId())
-                                .targetId(existingVote.getTargetId())
-                                .targetType(targetType)
-                                .voteType(dto.getVoteType())
-                                .previousVoteType(previousVoteType)
-                                .action("SWITCHED")
-                        .build()
-                ))
+                .doOnSuccess(vote -> outboxService.saveEvent(
+                    kafkaConfig.VOTE_CAST_TOPIC,
+                    existingVote.getTargetId(),
+                    VoteCastEvent.builder()
+                            .voterId(existingVote.getUserId())
+                            .targetId(existingVote.getTargetId())
+                            .targetType(targetType)
+                            .voteType(dto.getVoteType())
+                            .action("SWITCHED")
+                            .build()
+                ).thenReturn(vote))
                 .map(voteMapper::toResponseDTO);
     }
 
@@ -117,15 +121,17 @@ public class VoteServiceImpl implements VoteService {
 
         return atomicIncrement(targetId, targetType, field, 1)
                 .then(voteRepository.save(voteMapper.toEntity(dto, userId, targetId, targetType)))
-                .doOnSuccess(vote -> eventProducer.publishVoteCast(
-                        VoteCastEvent.builder()
-                                .voterId(userId)
-                                .targetId(targetId)
-                                .targetType(targetType)
-                                .voteType(dto.getVoteType())
-                                .action("ADDED")
-                        .build()
-                ))
+                .doOnSuccess(vote -> outboxService.saveEvent(
+                    kafkaConfig.VOTE_CAST_TOPIC,
+                    targetId,
+                    VoteCastEvent.builder()
+                            .voterId(userId)
+                            .targetId(targetId)
+                            .targetType(targetType)
+                            .voteType(dto.getVoteType())
+                            .action("ADDED")
+                            .build()
+                ).thenReturn(vote))
                 .map(voteMapper::toResponseDTO);
     }
 

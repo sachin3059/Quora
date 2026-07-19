@@ -1,0 +1,48 @@
+package com.quora.outbox.poller;
+
+import com.quora.outbox.model.OutboxEvent;
+import com.quora.outbox.repository.OutboxRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+import java.time.Instant;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class OutboxPoller {
+
+    private final OutboxRepository outboxRepository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Scheduled(fixedDelay = 5000) // runs every 5 seconds
+    public void poll() {
+        log.debug("OutboxPoller running...");
+
+        outboxRepository.findByPublishedFalseOrderByCreatedAtAsc()
+                .flatMap(this::publishAndMark)
+                .doOnError(e -> log.error("OutboxPoller error: {}", e.getMessage()))
+                .subscribe();
+    }
+
+    private Mono<OutboxEvent> publishAndMark(OutboxEvent event) {
+        return Mono.fromRunnable(() ->
+                        kafkaTemplate.send(event.getTopic(), event.getPartitionKey(), event.getPayload())
+                )
+                .then(Mono.defer(() -> {
+                    event.setPublished(true);
+                    event.setPublishedAt(Instant.now());
+                    return outboxRepository.save(event);
+                }))
+                .doOnSuccess(saved -> log.info(
+                        "Outbox event published — topic: {}, key: {}",
+                        saved.getTopic(), saved.getPartitionKey()))
+                .doOnError(e -> log.error(
+                        "Failed to publish outbox event — topic: {}, error: {}",
+                        event.getTopic(), e.getMessage()));
+    }
+}

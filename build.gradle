@@ -68,9 +68,6 @@ dependencies {
     // swagger
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.9'
 
-
-     // Pinecone
-    implementation 'io.pinecone:pinecone-client:2.0.0'
     
     // OkHttp (for calling Ollama REST API)
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
@@ -78,6 +75,9 @@ dependencies {
 
     // cloudinary
     implementation 'com.cloudinary:cloudinary-http44:1.36.0'
+
+    // dot env
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
 
 }

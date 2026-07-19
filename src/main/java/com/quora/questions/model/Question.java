@@ -35,6 +35,9 @@ public class Question {
     private List<String> tags;
 
     @Builder.Default
+    private List<Float> embedding = new ArrayList<>();
+
+    @Builder.Default
     private long upvotes = 0L;
 
     @Builder.Default

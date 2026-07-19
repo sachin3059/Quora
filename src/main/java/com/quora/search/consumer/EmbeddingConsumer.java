@@ -2,7 +2,6 @@ package com.quora.search.consumer;
 
 import com.quora.kafka.events.QuestionPostedEvent;
 import com.quora.search.service.OllamaEmbeddingService;
-import com.quora.search.service.PineconeService;
 import com.quora.questions.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,13 +14,12 @@ import org.springframework.stereotype.Component;
 public class EmbeddingConsumer {
 
     private final OllamaEmbeddingService ollamaEmbeddingService;
-    private final PineconeService pineconeService;
     private final QuestionRepository questionRepository;
 
     @KafkaListener(
-            topics = "quora.question.posted",
-            groupId = "embedding-consumer-group",
-            containerFactory = "questionPostedListenerFactory"
+        topics = "quora.question.posted",
+        groupId = "embedding-consumer-group",
+        containerFactory = "questionPostedListenerFactory"
     )
     public void onQuestionPosted(QuestionPostedEvent event) {
         log.info("EmbeddingConsumer received event for questionId: {}", event.getQuestionId());
@@ -30,10 +28,13 @@ public class EmbeddingConsumer {
                 .flatMap(question -> {
                     String text = question.getTitle() + " " + question.getContent();
                     return ollamaEmbeddingService.generateEmbedding(text)
-                            .flatMap(embedding -> pineconeService.upsertVector(question.getId(), embedding));
+                            .flatMap(embedding -> {
+                                question.setEmbedding(embedding);
+                                return questionRepository.save(question);
+                            });
                 })
-                .doOnSuccess(v -> log.info("Embedding stored in Pinecone for questionId: {}", event.getQuestionId()))
-                .doOnError(e -> log.error("Embedding failed for questionId: {}", event.getQuestionId(), e))
+                .doOnSuccess(q -> log.info("Embedding saved on question: {}", q.getId()))
+                .doOnError(e -> log.error("Embedding failed: {}", e.getMessage()))
                 .subscribe();
     }
 }

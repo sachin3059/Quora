@@ -8,7 +8,7 @@ spring:
   # ---- MONGO-DB ------
   data:
     mongodb:
-      uri: mongodb://localhost:27017/quora
+      uri: ${MONGODB_URI}
       auto-index-creation: true
 
     #----- REDIS -------
@@ -42,7 +42,7 @@ spring:
 
 app:
   jwt:
-    secret: 7d4f9c2a8e5b1f6d3a9c7e2b8f4d1a6c9e3f7b2a5d8e1c4f9a6b3d7e2c8f5a1
+    secret: ${JWT_SECRET}
     expiration-ms: 86400000           # 24 hrs (down from 24 hours)
   refresh-token:
     expiration-ms: 604800000        # 7 days
@@ -53,18 +53,12 @@ app:
     base-url: http://localhost:11434
     model: nomic-embed-text
 
-  
-  # ----------- PINECONE -----------
-  pinecone:
-    api-key: pcsk_PPMzx_ANmVMCKY5WRFbrxRvUckLC6QjA8KCVU8rSDRZyizzsFJGta3oxaVc3yqNJDW2rt
-    host: https://questions-oxlc5r7.svc.aped-4627-b74a.pinecone.io
-    index-name: questions
 
   # ----------- CLOUDINARY -----------
   cloudinary:
-    cloud-name: ddup7omgb
-    api-key: 824188554344677
-    api-secret: UAT4DVVhr1EtbVhTbCorug4EELw
+    cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    api-key: ${CLOUDINARY_API_KEY}
+    api-secret: ${CLOUDINARY_API_SECRET}
 
 
 # -- SWAGGER

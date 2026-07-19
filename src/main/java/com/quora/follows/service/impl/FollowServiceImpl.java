@@ -7,7 +7,7 @@ import com.quora.follows.mapper.FollowMapper;
 import com.quora.follows.repository.FollowRepository;
 import com.quora.follows.service.FollowService;
 import com.quora.kafka.events.UserFollowedEvent;
-import com.quora.kafka.producer.EventProducer;
+import com.quora.outbox.service.OutboxService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import com.quora.users.model.User;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.quora.outbox.service.OutboxService;
+import com.quora.kafka.config.KafkaConfig;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +26,9 @@ public class FollowServiceImpl implements FollowService {
 
     private final FollowRepository followRepository;
     private final FollowMapper followMapper;
-    private final EventProducer eventProducer;
+    private final OutboxService outboxService;
     private final ReactiveMongoTemplate mongoTemplate;
+    private final KafkaConfig kafkaConfig;
 
     @Override
     public Mono<FollowResponseDTO> followUser(String followerId, String followingId) {
@@ -47,11 +50,14 @@ public class FollowServiceImpl implements FollowService {
                                                 incrementFollowersCount(followingId)
                                                         .then(incrementFollowingCount(followerId))
                                                         .doOnSuccess(v ->
-                                                                eventProducer.publishUserFollowed(
-                                                                        UserFollowedEvent.builder()
-                                                                                .followerId(followerId)
-                                                                                .followingId(followingId)
-                                                                                .build()))
+                                                                outboxService.saveEvent(
+                                                                    kafkaConfig.USER_FOLLOWED_TOPIC,
+                                                                    followingId,
+                                                                    UserFollowedEvent.builder()
+                                                                            .followerId(followerId)
+                                                                            .followingId(followingId)
+                                                                            .build()
+                                                                ))
                                                         .thenReturn(followMapper.toResponseDTO(saved))
                                         )
                         )
