@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,14 +28,16 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final QuestionMapper questionMapper;
     private final UserRepository userRepository;
-    private final OutboxService outboxService; // ← replaces EventProducer
+    private final OutboxService outboxService;
+    private final TransactionalOperator transactionalOperator;
 
     public Mono<QuestionResponseDTO> createQuestion(QuestionRequestDTO questionRequestDTO, String authorId) {
         return userRepository.findById(authorId)
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found: " + authorId)))
                 .flatMap(author -> {
                     Question question = questionMapper.toEntity(questionRequestDTO, authorId, author);
-                    return questionRepository.save(question)
+
+                    Mono<QuestionResponseDTO> writeChain = questionRepository.save(question)
                             .flatMap(saved -> outboxService.saveEvent(
                                     KafkaConfig.QUESTION_POSTED_TOPIC,
                                     saved.getId(),
@@ -45,6 +48,8 @@ public class QuestionService {
                                             .build()
                             ).thenReturn(saved))
                             .map(questionMapper::toResponseDTO);
+
+                    return writeChain.as(transactionalOperator::transactional);
                 });
     }
 

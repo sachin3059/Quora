@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import org.springframework.transaction.reactive.TransactionalOperator;
 
 @Service
 @RequiredArgsConstructor
@@ -22,13 +23,14 @@ public class CommentService {
     private final CommentMapper commentMapper;
     private final UserRepository userRepository;
     private final OutboxService outboxService; // ← replaces EventProducer
+    private final TransactionalOperator transactionalOperator;
 
     public Mono<CommentResponseDTO> createCommentOnAnswer(CommentRequestDTO dto, String authorId, String answerId) {
         return userRepository.findById(authorId)
                 .switchIfEmpty(Mono.error(new RuntimeException("User not found: " + authorId)))
                 .flatMap(user -> {
                     Comment comment = commentMapper.toEntity(dto, authorId, answerId, "ANSWER", answerId, user);
-                    return commentRepository.save(comment)
+                    Mono<CommentResponseDTO> writeChain = commentRepository.save(comment)
                             .flatMap(saved -> outboxService.saveEvent(
                                     KafkaConfig.COMMENT_POSTED_TOPIC,
                                     saved.getId(),
@@ -40,6 +42,7 @@ public class CommentService {
                                             .build()
                             ).thenReturn(saved))
                             .map(commentMapper::toResponseDTO);
+                    return writeChain.as(transactionalOperator::transactional);
                 });
     }
 

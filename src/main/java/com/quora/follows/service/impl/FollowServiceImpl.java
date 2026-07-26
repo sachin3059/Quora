@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 import com.quora.users.model.User;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import com.quora.outbox.service.OutboxService;
 import com.quora.kafka.config.KafkaConfig;
+import org.springframework.transaction.reactive.TransactionalOperator;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +29,7 @@ public class FollowServiceImpl implements FollowService {
     private final OutboxService outboxService;
     private final ReactiveMongoTemplate mongoTemplate;
     private final KafkaConfig kafkaConfig;
+    private final TransactionalOperator transactionalOperator;
 
     @Override
     public Mono<FollowResponseDTO> followUser(String followerId, String followingId) {
@@ -43,24 +44,25 @@ public class FollowServiceImpl implements FollowService {
                 .flatMap(existing -> Mono.<FollowResponseDTO>error(
                         new DuplicateResourceException("You are already following this user")))
                 .switchIfEmpty(
-                        Mono.defer(() ->
-                                followRepository.save(
-                                                followMapper.toEntity(followerId, followingId))
-                                        .flatMap(saved ->
-                                                incrementFollowersCount(followingId)
-                                                        .then(incrementFollowingCount(followerId))
-                                                        .doOnSuccess(v ->
-                                                                outboxService.saveEvent(
-                                                                    kafkaConfig.USER_FOLLOWED_TOPIC,
-                                                                    followingId,
-                                                                    UserFollowedEvent.builder()
-                                                                            .followerId(followerId)
-                                                                            .followingId(followingId)
-                                                                            .build()
-                                                                ))
-                                                        .thenReturn(followMapper.toResponseDTO(saved))
-                                        )
-                        )
+                        Mono.defer(() -> {
+                            Mono<FollowResponseDTO> writeChain = followRepository.save(
+                                            followMapper.toEntity(followerId, followingId))
+                                    .flatMap(saved ->
+                                            incrementFollowersCount(followingId)
+                                                    .then(incrementFollowingCount(followerId))
+                                                    .then(outboxService.saveEvent(
+                                                            kafkaConfig.USER_FOLLOWED_TOPIC,
+                                                            followingId,
+                                                            UserFollowedEvent.builder()
+                                                                    .followerId(followerId)
+                                                                    .followingId(followingId)
+                                                                    .build()
+                                                    ))
+                                                    .thenReturn(followMapper.toResponseDTO(saved))
+                                    );
+
+                            return writeChain.as(transactionalOperator::transactional);
+                        })
                 );
     }
 
@@ -69,11 +71,14 @@ public class FollowServiceImpl implements FollowService {
         return followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
                 .switchIfEmpty(Mono.error(
                         new RuntimeException("You are not following this user")))
-                .flatMap(follow ->
-                        followRepository.delete(follow)
-                                .then(decrementFollowersCount(followingId))
-                                .then(decrementFollowingCount(followerId))
-                );
+                .flatMap(follow -> {
+                    Mono<Void> writeChain = followRepository.delete(follow)
+                            .then(decrementFollowersCount(followingId))
+                            .then(decrementFollowingCount(followerId));
+
+                    // Delete + both counter decrements now commit or roll back together.
+                    return writeChain.as(transactionalOperator::transactional);
+                });
     }
 
     @Override

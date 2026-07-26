@@ -7,6 +7,7 @@ import com.quora.votes.dto.VoteResponseDTO;
 import com.quora.votes.enums.TargetType;
 import com.quora.votes.enums.VoteType;
 import com.quora.votes.mapper.VoteMapper;
+import com.quora.votes.model.Vote;
 import com.quora.votes.repository.VoteRepository;
 import com.quora.votes.service.VoteService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import com.quora.outbox.service.OutboxService;
 import com.quora.kafka.config.KafkaConfig;
+import org.springframework.transaction.reactive.TransactionalOperator;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +33,7 @@ public class VoteServiceImpl implements VoteService {
     private final ReactiveMongoTemplate mongoTemplate;
     private final OutboxService outboxService;
     private final KafkaConfig kafkaConfig;
+    private final TransactionalOperator transactionalOperator;
 
     @Override
     public Mono<VoteResponseDTO> castVote(VoteRequestDTO dto, String userId,
@@ -43,7 +46,7 @@ public class VoteServiceImpl implements VoteService {
     // ─── Existing Vote Logic ──────────────────────────────────────────────
 
     private Mono<VoteResponseDTO> handleExistingVote(
-            com.quora.votes.model.Vote existingVote,
+            Vote existingVote,
             VoteRequestDTO dto,
             TargetType targetType) {
 
@@ -59,54 +62,57 @@ public class VoteServiceImpl implements VoteService {
     }
 
     private Mono<VoteResponseDTO> removeVote(
-            com.quora.votes.model.Vote existingVote,
+            Vote existingVote,
             TargetType targetType) {
 
         String field = existingVote.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
 
-        return atomicIncrement(existingVote.getTargetId(), targetType, field, -1)
+        Mono<VoteResponseDTO> writeChain = atomicIncrement(existingVote.getTargetId(), targetType, field, -1)
                 .then(voteRepository.delete(existingVote))
-                .doOnTerminate(() -> outboxService.saveEvent(
-                    kafkaConfig.VOTE_CAST_TOPIC,
-                    existingVote.getTargetId(),
-                    VoteCastEvent.builder()
-                            .voterId(existingVote.getUserId())
-                            .targetId(existingVote.getTargetId())
-                            .targetType(targetType)
-                            .voteType(existingVote.getVoteType())
-                            .action("REMOVED")
-                            .build()
-                ).subscribe())
+                .then(outboxService.saveEvent(
+                        kafkaConfig.VOTE_CAST_TOPIC,
+                        existingVote.getTargetId(),
+                        VoteCastEvent.builder()
+                                .voterId(existingVote.getUserId())
+                                .targetId(existingVote.getTargetId())
+                                .targetType(targetType)
+                                .voteType(existingVote.getVoteType())
+                                .action("REMOVED")
+                                .build()
+                ))
                 .then(Mono.empty()); // returns empty — vote removed
+
+        return writeChain.as(transactionalOperator::transactional);
     }
 
     private Mono<VoteResponseDTO> switchVote(
-            com.quora.votes.model.Vote existingVote,
+            Vote existingVote,
             VoteRequestDTO dto,
             TargetType targetType) {
 
         // Decrement old vote type, increment new vote type
         String decrementField = existingVote.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
         String incrementField = dto.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
-        VoteType previousVoteType = existingVote.getVoteType();
 
         existingVote.setVoteType(dto.getVoteType()); // update vote type
 
-        return atomicIncrement(existingVote.getTargetId(), targetType, decrementField, -1)
+        Mono<VoteResponseDTO> writeChain = atomicIncrement(existingVote.getTargetId(), targetType, decrementField, -1)
                 .then(atomicIncrement(existingVote.getTargetId(), targetType, incrementField, 1))
                 .then(voteRepository.save(existingVote))
-                .doOnSuccess(vote -> outboxService.saveEvent(
-                    kafkaConfig.VOTE_CAST_TOPIC,
-                    existingVote.getTargetId(),
-                    VoteCastEvent.builder()
-                            .voterId(existingVote.getUserId())
-                            .targetId(existingVote.getTargetId())
-                            .targetType(targetType)
-                            .voteType(dto.getVoteType())
-                            .action("SWITCHED")
-                            .build()
+                .flatMap(vote -> outboxService.saveEvent(
+                        kafkaConfig.VOTE_CAST_TOPIC,
+                        existingVote.getTargetId(),
+                        VoteCastEvent.builder()
+                                .voterId(existingVote.getUserId())
+                                .targetId(existingVote.getTargetId())
+                                .targetType(targetType)
+                                .voteType(dto.getVoteType())
+                                .action("SWITCHED")
+                                .build()
                 ).thenReturn(vote))
                 .map(voteMapper::toResponseDTO);
+
+        return writeChain.as(transactionalOperator::transactional);
     }
 
     // ─── New Vote Logic ───────────────────────────────────────────────────
@@ -119,20 +125,22 @@ public class VoteServiceImpl implements VoteService {
 
         String field = dto.getVoteType() == VoteType.UPVOTE ? "upvotes" : "downvotes";
 
-        return atomicIncrement(targetId, targetType, field, 1)
+        Mono<VoteResponseDTO> writeChain = atomicIncrement(targetId, targetType, field, 1)
                 .then(voteRepository.save(voteMapper.toEntity(dto, userId, targetId, targetType)))
-                .doOnSuccess(vote -> outboxService.saveEvent(
-                    kafkaConfig.VOTE_CAST_TOPIC,
-                    targetId,
-                    VoteCastEvent.builder()
-                            .voterId(userId)
-                            .targetId(targetId)
-                            .targetType(targetType)
-                            .voteType(dto.getVoteType())
-                            .action("ADDED")
-                            .build()
+                .flatMap(vote -> outboxService.saveEvent(
+                        kafkaConfig.VOTE_CAST_TOPIC,
+                        targetId,
+                        VoteCastEvent.builder()
+                                .voterId(userId)
+                                .targetId(targetId)
+                                .targetType(targetType)
+                                .voteType(dto.getVoteType())
+                                .action("ADDED")
+                                .build()
                 ).thenReturn(vote))
                 .map(voteMapper::toResponseDTO);
+
+        return writeChain.as(transactionalOperator::transactional);
     }
 
     // ─── Atomic MongoDB Increment ─────────────────────────────────────────
