@@ -5,6 +5,8 @@ import com.quora.answers.repository.AnswerRepository;
 import com.quora.comments.model.Comment;
 import com.quora.comments.repository.CommentRepository;
 import com.quora.kafka.config.KafkaConfig;
+import com.quora.kafka.consumer.idempotency.ProcessedEvent;
+import com.quora.kafka.consumer.idempotency.ProcessedEventRepository;
 import com.quora.kafka.events.*;
 import com.quora.notifications.enums.NotificationType;
 import com.quora.notifications.mapper.NotificationMapper;
@@ -15,18 +17,26 @@ import com.quora.users.repository.UserRepository;
 import com.quora.votes.enums.TargetType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationConsumer {
+
+    private static final String CONSUMER_NAME = "notification-service";
 
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
@@ -35,12 +45,14 @@ public class NotificationConsumer {
     private final AnswerRepository answerRepository;
     private final CommentRepository commentRepository;
     private final ReactiveMongoTemplate mongoTemplate;
+    private final ProcessedEventRepository processedEventRepository;
 
     // ─── Answer Posted ────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.ANSWER_POSTED_TOPIC,
             groupId = "notification-service", containerFactory = "answerPostedListenerFactory")
-    public void handleAnswerPosted(AnswerPostedEvent event) {
+    public void handleAnswerPosted(AnswerPostedEvent event,
+                                    @Header(value = "eventId", required = false) byte[] eventIdHeader) {
         log.info("NotificationConsumer received AnswerPostedEvent: {}", event);
 
         if (event.getAuthorId() == null || event.getQuestionAuthorId() == null) {
@@ -48,41 +60,36 @@ public class NotificationConsumer {
             return;
         }
 
-        // Increment answerCount on question atomically
-        incrementAnswerCount(event.getQuestionId())
-                .subscribe(
-                        v -> log.info("answerCount incremented for question: {}", event.getQuestionId()),
-                        e -> log.error("Failed to increment answerCount: {}", e.getMessage())
-                );
+        runIdempotently(eventIdHeader, event, processAnswerPosted(event));
+    }
+
+    private Mono<Void> processAnswerPosted(AnswerPostedEvent event) {
+        Mono<Void> incrementCount = incrementAnswerCount(event.getQuestionId());
 
         // Don't notify if author answers their own question
-        if (event.getAuthorId().equals(event.getQuestionAuthorId())) return;
+        Mono<Void> notify = event.getAuthorId().equals(event.getQuestionAuthorId())
+                ? Mono.empty()
+                : getUserDisplayName(event.getAuthorId())
+                        .flatMap(actorName -> notificationRepository.save(
+                                notificationMapper.toEntity(
+                                        event.getQuestionAuthorId(),
+                                        event.getAuthorId(),
+                                        NotificationType.ANSWER_POSTED,
+                                        event.getAnswerId(),
+                                        "ANSWER",
+                                        actorName + " answered your question"
+                                )))
+                        .then();
 
-        getUserDisplayName(event.getAuthorId())
-                .flatMap(actorName -> {
-                    String message = actorName + " answered your question";
-                    return notificationRepository.save(
-                            notificationMapper.toEntity(
-                                    event.getQuestionAuthorId(),
-                                    event.getAuthorId(),
-                                    NotificationType.ANSWER_POSTED,
-                                    event.getAnswerId(),
-                                    "ANSWER",
-                                    message
-                            )
-                    );
-                })
-                .subscribe(
-                        n -> log.info("Notification saved for answer posted: {}", n.getId()),
-                        e -> log.error("Failed to save notification: {}", e.getMessage())
-                );
+        return incrementCount.then(notify);
     }
 
     // ─── Comment Posted ───────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.COMMENT_POSTED_TOPIC,
             groupId = "notification-service", containerFactory = "commentPostedListenerFactory")
-    public void handleCommentPosted(CommentPostedEvent event) {
+    public void handleCommentPosted(CommentPostedEvent event,
+                                     @Header(value = "eventId", required = false) byte[] eventIdHeader) {
         log.info("NotificationConsumer received CommentPostedEvent: {}", event);
 
         if (event.getAuthorId() == null || event.getParentId() == null) {
@@ -90,20 +97,18 @@ public class NotificationConsumer {
             return;
         }
 
-        // Increment commentCount on parent atomically
-        incrementCommentCount(event.getParentId(), event.getParentType())
-                .subscribe(
-                        v -> log.info("commentCount incremented for parent: {}", event.getParentId()),
-                        e -> log.error("Failed to increment commentCount: {}", e.getMessage())
-                );
+        runIdempotently(eventIdHeader, event, processCommentPosted(event));
+    }
 
+    private Mono<Void> processCommentPosted(CommentPostedEvent event) {
+        Mono<Void> incrementCount = incrementCommentCount(event.getParentId(), event.getParentType());
 
-        // Resolve parent author from parentId + parentType
-        resolveParentAuthor(event.getParentId(), event.getParentType())
+        Mono<Void> notify = resolveParentAuthor(event.getParentId(), event.getParentType())
                 .flatMap(parentAuthorId -> {
                     // Don't notify if commenting on own content
-                    if (event.getAuthorId().equals(parentAuthorId)) return Mono.empty();
-
+                    if (event.getAuthorId().equals(parentAuthorId)) {
+                        return Mono.<Void>empty();
+                    }
                     return getUserDisplayName(event.getAuthorId())
                             .flatMap(actorName -> {
                                 String message = event.getParentType().equals("ANSWER")
@@ -118,32 +123,37 @@ public class NotificationConsumer {
                                                 event.getCommentId(),
                                                 "COMMENT",
                                                 message
-                                        )
-                                );
+                                        ));
                             });
                 })
-                .subscribe(
-                        n -> log.info("Notification saved for comment posted"),
-                        e -> log.error("Failed to save notification: {}", e.getMessage())
-                );
+                .then();
+
+        return incrementCount.then(notify);
     }
 
     // ─── Vote Cast ────────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.VOTE_CAST_TOPIC,
             groupId = "notification-service", containerFactory = "voteCastListenerFactory")
-    public void handleVoteCast(VoteCastEvent event) {
+    public void handleVoteCast(VoteCastEvent event,
+                                @Header(value = "eventId", required = false) byte[] eventIdHeader) {
         log.info("NotificationConsumer received VoteCastEvent: {}", event);
 
         // Only notify on UPVOTE ADDED — no notification for downvotes or removals
-        if (!event.getAction().equals("ADDED")) return;
-        if (event.getVoteType().name().equals("DOWNVOTE")) return;
+        if (!event.getAction().equals("ADDED") || event.getVoteType().name().equals("DOWNVOTE")) {
+            return;
+        }
 
-        resolveContentAuthor(event.getTargetId(), event.getTargetType())
+        runIdempotently(eventIdHeader, event, processVoteCast(event));
+    }
+
+    private Mono<Void> processVoteCast(VoteCastEvent event) {
+        return resolveContentAuthor(event.getTargetId(), event.getTargetType())
                 .flatMap(authorId -> {
                     // Don't notify if upvoting own content
-                    if (event.getVoterId().equals(authorId)) return Mono.empty();
-
+                    if (event.getVoterId().equals(authorId)) {
+                        return Mono.<Void>empty();
+                    }
                     return getUserDisplayName(event.getVoterId())
                             .flatMap(actorName -> {
                                 String message = actorName + " upvoted your "
@@ -157,48 +167,75 @@ public class NotificationConsumer {
                                                 event.getTargetId(),
                                                 event.getTargetType().name(),
                                                 message
-                                        )
-                                );
+                                        ));
                             });
                 })
-                .subscribe(
-                        n -> log.info("Notification saved for vote cast"),
-                        e -> log.error("Failed to save notification: {}", e.getMessage())
-                );
+                .then();
     }
 
     // ─── User Followed ────────────────────────────────────────────────────
 
     @KafkaListener(topics = KafkaConfig.USER_FOLLOWED_TOPIC,
             groupId = "notification-service", containerFactory = "userFollowedListenerFactory")
-    public void handleUserFollowed(UserFollowedEvent event) {
+    public void handleUserFollowed(UserFollowedEvent event,
+                                    @Header(value = "eventId", required = false) byte[] eventIdHeader) {
         log.info("NotificationConsumer received UserFollowedEvent: {}", event);
 
-        getUserDisplayName(event.getFollowerId())
-                .flatMap(actorName -> {
-                    String message = actorName + " started following you";
-                    return notificationRepository.save(
-                            notificationMapper.toEntity(
-                                    event.getFollowingId(),
-                                    event.getFollowerId(),
-                                    NotificationType.USER_FOLLOWED,
-                                    event.getFollowerId(),
-                                    "USER",
-                                    message
-                            )
-                    );
+        runIdempotently(eventIdHeader, event, processUserFollowed(event));
+    }
+
+    private Mono<Void> processUserFollowed(UserFollowedEvent event) {
+        return getUserDisplayName(event.getFollowerId())
+                .flatMap(actorName -> notificationRepository.save(
+                        notificationMapper.toEntity(
+                                event.getFollowingId(),
+                                event.getFollowerId(),
+                                NotificationType.USER_FOLLOWED,
+                                event.getFollowerId(),
+                                "USER",
+                                actorName + " started following you"
+                        )))
+                .then();
+    }
+
+    // ─── Idempotency Wrapper ──────────────────────────────────────────────
+
+    private void runIdempotently(byte[] eventIdHeader, Object event, Mono<Void> work) {
+        if (eventIdHeader == null) {
+            log.warn("No eventId header — processing without idempotency protection: {}", event);
+            work.block(Duration.ofSeconds(10));
+            return;
+        }
+
+        String eventId = new String(eventIdHeader, StandardCharsets.UTF_8);
+        String dedupeKey = CONSUMER_NAME + "::" + eventId;
+
+        ProcessedEvent marker = ProcessedEvent.builder()
+                .id(dedupeKey)
+                .processedAt(Instant.now())
+                .build();
+
+        processedEventRepository.insert(marker)
+                .then(work)
+                .onErrorResume(e -> {
+                    if (e instanceof DuplicateKeyException) {
+                        log.info("Event {} already processed by {} — skipping duplicate delivery",
+                                eventId, CONSUMER_NAME);
+                        return Mono.empty();
+                    }
+                    log.error("Failed to process event {} — clearing marker for retry: {}",
+                            eventId, e.getMessage());
+                    return processedEventRepository.deleteById(dedupeKey)
+                            .then(Mono.error(e));
                 })
-                .subscribe(
-                        n -> log.info("Notification saved for user followed"),
-                        e -> log.error("Failed to save notification: {}", e.getMessage())
-                );
+                .block(Duration.ofSeconds(10));
     }
 
     // ─── Helper Methods ───────────────────────────────────────────────────
 
     private Mono<String> getUserDisplayName(String userId) {
         return userRepository.findById(userId)
-                .map(user ->  user.getUsername())
+                .map(user -> user.getUsername())
                 .defaultIfEmpty("Someone");
     }
 
@@ -236,7 +273,6 @@ public class NotificationConsumer {
         if (parentType.equals("ANSWER")) {
             return mongoTemplate.updateFirst(query, update, Answer.class).then();
         } else {
-            // Comment on comment — increment rootId question's count
             return mongoTemplate.updateFirst(query, update, Comment.class).then();
         }
     }

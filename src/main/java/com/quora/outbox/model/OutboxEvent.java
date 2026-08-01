@@ -30,4 +30,15 @@ public class OutboxEvent {
 
     private Instant createdAt;
     private Instant publishedAt;
+
+    // ─── Retry / Dead-Letter tracking ──────────────────────────────────────
+
+    @Builder.Default
+    private int retryCount = 0;
+
+    private String lastError;
+
+    @Builder.Default
+    @Indexed                     // so failed events can be queried/monitored separately
+    private boolean failed = false;
 }

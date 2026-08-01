@@ -3,6 +3,8 @@ package com.quora.kafka.consumer;
 import com.quora.answers.repository.AnswerRepository;
 import com.quora.comments.repository.CommentRepository;
 import com.quora.kafka.config.KafkaConfig;
+import com.quora.kafka.consumer.idempotency.ProcessedEvent;
+import com.quora.kafka.consumer.idempotency.ProcessedEventRepository;
 import com.quora.kafka.events.VoteCastEvent;
 import com.quora.questions.repository.QuestionRepository;
 import com.quora.users.model.User;
@@ -10,24 +12,32 @@ import com.quora.votes.enums.TargetType;
 import com.quora.votes.enums.VoteType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReputationConsumer {
 
+    private static final String CONSUMER_NAME = "reputation-service";
+
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final CommentRepository commentRepository;
     private final ReactiveMongoTemplate mongoTemplate;
-    // ← UserRepository removed, not needed here
+    private final ProcessedEventRepository processedEventRepository;
 
     // ─── Reputation Points ────────────────────────────────────────────────
     private static final int QUESTION_UPVOTE_REP   = +5;
@@ -42,26 +52,59 @@ public class ReputationConsumer {
             groupId = "reputation-service",
             containerFactory = "voteCastListenerFactory"
     )
-    public void handleVoteCast(VoteCastEvent event) {
+    public void handleVoteCast(VoteCastEvent event,
+                                @Header(value = "eventId", required = false) byte[] eventIdHeader) {
+
         log.info("ReputationConsumer received: {} on {} type {}",
                 event.getAction(), event.getTargetId(), event.getTargetType());
 
-        // Guard — if targetType is still null, skip processing
         if (event.getTargetType() == null) {
             log.error("targetType is null for event: {} — skipping", event);
             return;
         }
 
-        findContentAuthor(event.getTargetId(), event.getTargetType())
+        if (eventIdHeader == null) {
+            log.warn("No eventId header on event — processing without idempotency protection: {}", event);
+            processEvent(event).block(Duration.ofSeconds(10));
+            return;
+        }
+
+        String eventId = new String(eventIdHeader, StandardCharsets.UTF_8);
+        String dedupeKey = CONSUMER_NAME + "::" + eventId;
+
+        ProcessedEvent marker = ProcessedEvent.builder()
+                .id(dedupeKey)
+                .processedAt(Instant.now())
+                .build();
+
+        // Insert-first pattern: MongoDB's _id uniqueness atomically prevents
+        // two deliveries of the same eventId from both processing successfully.
+        processedEventRepository.insert(marker)
+                .then(processEvent(event))
+                .onErrorResume(e -> {
+                    if (e instanceof DuplicateKeyException) {
+                        log.info("Event {} already processed by {} — skipping duplicate delivery",
+                                eventId, CONSUMER_NAME);
+                        return Mono.empty();
+                    }
+                    log.error("Failed to process event {} — clearing marker for retry: {}",
+                            eventId, e.getMessage());
+                    return processedEventRepository.deleteById(dedupeKey)
+                            .then(Mono.error(e));
+                })
+                // Block so the offset only commits after this genuinely succeeds or fails —
+                // @KafkaListener is inherently synchronous, so blocking here (with a timeout)
+                // is the correct way to make Kafka's ack wait for the real outcome.
+                .block(Duration.ofSeconds(10));
+    }
+
+    private Mono<Void> processEvent(VoteCastEvent event) {
+        return findContentAuthor(event.getTargetId(), event.getTargetType())
                 .flatMap(authorId -> {
                     int points = calculatePoints(event);
                     log.info("Updating reputation for author: {} by {} points", authorId, points);
                     return updateReputation(authorId, points);
-                })
-                .subscribe(
-                        result -> log.info("Reputation updated successfully for event: {}", event.getTargetId()),
-                        error -> log.error("Failed to update reputation: {}", error.getMessage())
-                );
+                });
     }
 
     // ─── Find Content Author ──────────────────────────────────────────────

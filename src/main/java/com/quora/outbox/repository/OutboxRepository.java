@@ -8,5 +8,7 @@ import reactor.core.publisher.Flux;
 @Repository
 public interface OutboxRepository extends ReactiveMongoRepository<OutboxEvent, String> {
 
-    Flux<OutboxEvent> findByPublishedFalseOrderByCreatedAtAsc();
+    Flux<OutboxEvent> findByPublishedFalseOrderByCreatedAtAsc(); // old method, if still used elsewhere
+
+    Flux<OutboxEvent> findByPublishedFalseAndFailedFalseOrderByCreatedAtAsc(); // ← add this
 }
