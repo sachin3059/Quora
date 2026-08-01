@@ -8,9 +8,12 @@ import com.quora.votes.enums.TargetType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 @Slf4j
 @Component
@@ -51,6 +54,10 @@ public class FeedScoreConsumer {
     // ─── Update score in all feed inboxes that contain this question ──────
 
     private void updateFeedScores(String questionId) {
+        // NOTE: ZADD with a freshly-recalculated absolute score is naturally
+        // idempotent — redelivery just re-sets the same score, no dedup needed.
+        // Blocking here (with a timeout) is what makes the offset commit only
+        // after this genuinely completes, instead of the moment subscribe() is called.
         questionRepository.findById(questionId)
                 .switchIfEmpty(Mono.error(
                         new RuntimeException("Question not found: " + questionId)))
@@ -61,7 +68,7 @@ public class FeedScoreConsumer {
 
                     // Scan all feed keys and update score if question exists in that feed
                     return reactiveRedisTemplate.scan(
-                                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                                    ScanOptions.scanOptions()
                                             .match(FEED_KEY_PATTERN)
                                             .count(100)
                                             .build()
@@ -69,11 +76,10 @@ public class FeedScoreConsumer {
                             .flatMap(feedKey -> updateScoreInFeed(feedKey, questionId, newScore))
                             .count();
                 })
-                .subscribe(
-                        count -> log.info("Score updated in {} feed inboxes for question: {}",
-                                count, questionId),
-                        error -> log.error("Failed to update feed scores: {}", error.getMessage())
-                );
+                .doOnSuccess(count -> log.info("Score updated in {} feed inboxes for question: {}",
+                        count, questionId))
+                .doOnError(error -> log.error("Failed to update feed scores: {}", error.getMessage()))
+                .block(Duration.ofSeconds(10));
     }
 
     // Only update if question already exists in that feed

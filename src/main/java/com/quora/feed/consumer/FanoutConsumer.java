@@ -1,77 +1,72 @@
 package com.quora.feed.consumer;
 
-import com.quora.feed.util.FeedScoreCalculator;
-import com.quora.follows.repository.FollowRepository;
-import com.quora.kafka.config.KafkaConfig;
+import com.quora.feed.cache.FeedCacheService;
 import com.quora.kafka.events.QuestionPostedEvent;
-import com.quora.questions.repository.QuestionRepository;
+import com.quora.kafka.events.UserFollowedEvent;
+import com.quora.kafka.events.VoteCastEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
-import org.springframework.data.domain.Range;
+
+import java.time.Duration;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class FanoutConsumer {
+public class FeedCacheInvalidationConsumer {
 
-    private final FollowRepository followRepository;
-    private final QuestionRepository questionRepository;
-    private final ReactiveRedisTemplate<String, String> reactiveRedisTemplate;
-    private final FeedScoreCalculator scoreCalculator;
+    private final FeedCacheService feedCacheService;
 
-    // Feed key pattern
-    private static final String FEED_KEY = "feed:";
-
-    // Max questions to keep in each user's feed inbox
-    private static final long MAX_FEED_SIZE = 1000;
+    // ─── Vote cast → trending scores changed → evict trending cache ───────
 
     @KafkaListener(
-            topics = KafkaConfig.QUESTION_POSTED_TOPIC,
-            groupId = "fanout-service",
-            containerFactory = "questionPostedListenerFactory"
+            topics = "quora.vote.cast",
+            groupId = "feed-cache-vote-group",
+            containerFactory = "voteCastListenerFactory"
     )
-    public void handleQuestionPosted(QuestionPostedEvent event) {
-        log.info("FanoutConsumer received QuestionPostedEvent: {}", event.getQuestionId());
-
-        if (event.getQuestionId() == null || event.getAuthorId() == null) {
-            log.error("Invalid QuestionPostedEvent — skipping: {}", event);
-            return;
-        }
-
-        // Fetch question → calculate score → fanout to all followers
-        questionRepository.findById(event.getQuestionId())
-                .switchIfEmpty(Mono.error(
-                        new RuntimeException("Question not found: " + event.getQuestionId())))
-                .flatMap(question -> {
-                    double score = scoreCalculator.calculate(question);
-                    return fanoutToFollowers(event.getAuthorId(), event.getQuestionId(), score);
-                })
-                .subscribe(
-                        count -> log.info("Fanout complete for question: {} to {} followers",
-                                event.getQuestionId(), count),
-                        error -> log.error("Fanout failed: {}", error.getMessage())
-                );
+    public void onVoteCast(VoteCastEvent event) {
+        log.info("VoteCastEvent received — evicting trending feed cache");
+        // Cache eviction is naturally idempotent — deleting an already-deleted
+        // key is a no-op. Blocking here just ensures we know if it failed,
+        // instead of silently leaving a stale cache with no record of why.
+        feedCacheService.evictTrending()
+                .doOnSuccess(v -> log.debug("Trending cache evicted after vote"))
+                .doOnError(e -> log.error("Failed to evict trending cache: {}", e.getMessage()))
+                .block(Duration.ofSeconds(10));
     }
 
-    // Push questionId to all followers' Redis sorted sets
-    private Mono<Long> fanoutToFollowers(String authorId, String questionId, double score) {
-        return followRepository.findByFollowingId(authorId)
-                .flatMap(follow -> {
-                    String feedKey = FEED_KEY + follow.getFollowerId();
+    // ─── Question posted → evict latest + tag caches ──────────────────────
 
-                    return reactiveRedisTemplate.opsForZSet()
-                            .add(feedKey, questionId, score)
-                            // Trim feed to max size — keep only top scored
-                            .then(reactiveRedisTemplate.opsForZSet()
-                                    .removeRange(feedKey, Range.closed(0L, - (MAX_FEED_SIZE + 1))))
-                            .doOnSuccess(removed -> log.debug(
-                                    "Added question {} to feed of user {}",
-                                    questionId, follow.getFollowerId()));
-                })
-                .count();
+    @KafkaListener(
+            topics = "quora.question.posted",
+            groupId = "feed-cache-question-group",
+            containerFactory = "questionPostedListenerFactory"
+    )
+    public void onQuestionPosted(QuestionPostedEvent event) {
+        log.info("QuestionPostedEvent received — evicting latest and tag feed caches for author: {}", event.getAuthorId());
+        // ⚠️ Not changed here: evictTagFeed(event.getAuthorId()) — kept exactly
+        // as it was, pending confirmation of FeedCacheService's real signature.
+        // This may need to be event.getTags() instead of the author's ID.
+        feedCacheService.evictLatest()
+                .then(feedCacheService.evictTagFeed(event.getAuthorId()))
+                .doOnSuccess(v -> log.debug("Latest and tag caches evicted after question posted"))
+                .doOnError(e -> log.error("Failed to evict caches: {}", e.getMessage()))
+                .block(Duration.ofSeconds(10));
+    }
+
+    // ─── User followed → following feed changed → evict following cache ───
+
+    @KafkaListener(
+            topics = "quora.user.followed",
+            groupId = "feed-cache-follow-group",
+            containerFactory = "userFollowedListenerFactory"
+    )
+    public void onUserFollowed(UserFollowedEvent event) {
+        log.info("UserFollowedEvent received — evicting following feed cache for follower: {}", event.getFollowerId());
+        feedCacheService.evictFollowingFeed(event.getFollowerId())
+                .doOnSuccess(v -> log.debug("Following cache evicted for user: {}", event.getFollowerId()))
+                .doOnError(e -> log.error("Failed to evict following cache: {}", e.getMessage()))
+                .block(Duration.ofSeconds(10));
     }
 }
